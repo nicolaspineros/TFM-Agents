@@ -1,0 +1,51 @@
+[project]
+name = "tfm-agents"
+version = "0.1.0"
+description = "Sistema Agentic de Análisis de Reseñas con LangGraph"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # LangChain / LangGraph
+    "langchain>=1.2.2",
+    "langchain-openai>=1.1.7",
+    "langgraph>=1.0.5",
+    # Data processing
+    "polars>=1.0.0",
+    "pyarrow>=17.0.0",
+    "duckdb>=1.0.0",
+    # Pydantic
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "vadersentiment>=3.3.2",
+    "matplotlib>=3.10.8",
+    "seaborn>=0.13.2",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+    "langgraph-cli[inmem]>=0.4.11",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "jupyterlab>=4.0.0",
+]
+
+# Opcional: dependencias para fases avanzadas
+# nlp = [
+#     "vaderSentiment>=3.3.2",  # Fase 3: Sentimiento inglés
+#     "pysentimiento>=0.7.0",   # Fase 5: Sentimiento español
+# ]
+# ml = [
+#     "xgboost>=2.0.0",         # Fase 5: Predicción
+#     "scikit-learn>=1.4.0",    # Fase 4: Métricas
+# ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+asyncio_mode = "auto"

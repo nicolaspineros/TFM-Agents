@@ -1,0 +1,51 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+uv.lock
+.python-version
+
+# Virtual environments
+.venv
+.env
+.langgraph_api
+
+# Data files (large, generated)
+*.parquet
+*.duckdb
+*.duckdb.wal
+warehouse/*.duckdb*
+
+# Model files
+data/gold/models/*.json
+data/gold/models/*.pkl
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+runs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LangGraph/LangSmith
+runs/*.sqlite
+runs/*.db
+
+# Logs
+*.log
+logs/
+
+# Data
+data/
+warehouse/

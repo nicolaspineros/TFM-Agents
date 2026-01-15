@@ -1,0 +1,13 @@
+{
+    "dependencies": ["."],
+    "graphs": {
+        "conversation": "./src/tfm/graphs/conversation_graph.py:conversation_graph",
+        "nlp": "./src/tfm/graphs/nlp_graph.py:nlp_graph",
+        "prediction": "./src/tfm/graphs/prediction_graph.py:prediction_graph",
+        "evaluation": "./src/tfm/graphs/evaluation_graph.py:evaluation_graph"
+    },
+    "env": ".env",
+    "http": {
+        "cors_allowed_origins": ["*"]
+    }
+}

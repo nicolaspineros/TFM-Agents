@@ -96,6 +96,21 @@ from tfm.tools.features import (
     get_feature_stats,
     get_gold_status,
 )
+from tfm.tools.analysis_tools import (
+    get_all_tools,
+    get_tools_summary,
+    get_reviews_distribution,
+    get_reviews_by_month,
+    get_sales_by_month,
+    get_user_stats,
+    get_business_stats,
+    get_ambiguous_reviews_analysis,
+    get_text_length_analysis,
+    get_sales_by_category,
+    get_reviews_sales_correlation,
+    get_dataset_status,
+    build_dataset_silver,
+)
 
 __all__ = [
     # Storage
@@ -162,4 +177,18 @@ __all__ = [
     "build_yelp_user_features",
     "get_feature_stats",
     "get_gold_status",
+    # Analysis Tools (para LLM con bind_tools)
+    "get_all_tools",
+    "get_tools_summary",
+    "get_reviews_distribution",
+    "get_reviews_by_month",
+    "get_sales_by_month",
+    "get_user_stats",
+    "get_business_stats",
+    "get_ambiguous_reviews_analysis",
+    "get_text_length_analysis",
+    "get_sales_by_category",
+    "get_reviews_sales_correlation",
+    "get_dataset_status",
+    "build_dataset_silver",
 ]

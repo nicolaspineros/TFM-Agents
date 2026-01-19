@@ -94,10 +94,66 @@ tfm-agents/
 
 | Agente | Responsabilidad |
 |--------|-----------------|
-| **Router / Query Planner** | Interpreta pregunta, inspecciona schema, aplica guardrails, decide si construir features/agregados |
+| **Router con Tool Binding** | Recibe pregunta, tiene acceso a herramientas via `bind_tools`, decide dinámicamente qué tool invocar |
 | **NLP/ML Worker** | Ejecuta tools de NLP (sentimiento, aspectos, clasificación) y ML |
-| **Insight Synthesizer** | Consume tablas pequeñas, redacta `InsightsReport` estructurado |
+| **Insight Synthesizer** | Consume resultados de herramientas, redacta `InsightsReport` estructurado |
 | **QA/Evaluator** | Checks deterministas (schema, faithfulness), evaluaciones ML (F1/MAE) |
+
+### Arquitectura de Tool Binding
+
+El sistema usa **tool binding** de LangChain para que el LLM descubra automáticamente las herramientas disponibles:
+
+```python
+# El LLM ve todas las herramientas y sus descripciones
+llm_with_tools = llm.bind_tools([
+    get_reviews_distribution,  # Distribución de ratings
+    get_sales_by_month,        # Ventas por mes (Olist)
+    get_reviews_by_month,      # Reviews por mes (temporal)
+    ...
+])
+```
+
+Esto permite:
+- **Descubrimiento dinámico**: El LLM "ve" qué herramientas existen
+- **Extensibilidad**: Agregar una tool nueva = el LLM la puede usar automáticamente
+- **Decisiones inteligentes**: El LLM decide basándose en las descripciones de cada tool
+
+---
+
+## Herramientas Disponibles (Tools)
+
+El sistema expone las siguientes herramientas que el LLM puede invocar:
+
+### Tools de Análisis de Reviews
+
+| Tool | Descripción | Datasets |
+|------|-------------|----------|
+| `get_reviews_distribution` | Distribución de ratings/estrellas | yelp, es, olist |
+| `get_reviews_by_month` | Tendencia temporal de reviews | yelp, olist (NO es) |
+| `get_ambiguous_reviews_analysis` | Análisis de reviews de 3 estrellas | yelp, es, olist |
+| `get_text_length_analysis` | Análisis por longitud de texto | yelp, es, olist |
+
+### Tools de Ventas (Solo Olist)
+
+| Tool | Descripción | Datasets |
+|------|-------------|----------|
+| `get_sales_by_month` | Ventas/órdenes por mes | olist |
+| `get_sales_by_category` | Ventas por categoría de producto | olist |
+| `get_reviews_sales_correlation` | Correlación reviews vs ventas | olist |
+
+### Tools de Usuarios/Negocios (Solo Yelp)
+
+| Tool | Descripción | Datasets |
+|------|-------------|----------|
+| `get_user_stats` | Estadísticas de usuarios, top reviewers | yelp |
+| `get_business_stats` | Estadísticas de negocios | yelp |
+
+### Tools de Utilidad
+
+| Tool | Descripción | Uso |
+|------|-------------|-----|
+| `get_dataset_status` | Verifica si los datos silver existen | Diagnóstico |
+| `build_dataset_silver` | Construye capa silver para un dataset | Preparación |
 
 ---
 
@@ -164,11 +220,12 @@ Las reseñas con `stars == 3` son consideradas **ambiguas**. El sistema:
 - [x] Features gold layer
 
 ### Fase 4: Agentes y Grafos (COMPLETADA)
-- [x] Router con guardrails
-- [x] NLP Worker con tools
-- [x] Conversation graph con rutas condicionales
+- [x] Router con **tool binding** (LLM descubre herramientas automáticamente)
+- [x] Tools de análisis con decorador `@tool` y descripciones claras
+- [x] Conversation graph con flujo: route → model → tools → synthesizer → QA
 - [x] Insight Synthesizer con LLM
-- [x] QA Evaluator con checks deterministicos
+- [x] QA Evaluator con checks determinísticos
+- [x] Soporte para todos los datasets (yelp, es, olist) en las herramientas
 
 ### Fase 5: Prediccion y ML Avanzado
 - [ ] Features temporales (lag, rolling)
@@ -181,97 +238,6 @@ Las reseñas con `stars == 3` son consideradas **ambiguas**. El sistema:
 - [ ] Integracion LangSmith
 - [ ] Evaluadores de faithfulness
 - [ ] Optimizacion de prompts
-
----
-
-## Uso en LangGraph Studio
-
-### Iniciar LangGraph Studio
-
-```bash
-cd tfm-agents
-
-# Activar entorno y ejecutar
-uv run langgraph dev
-```
-
-Esto abrira automaticamente el navegador en `http://127.0.0.1:2024` con LangGraph Studio.
-
-### Grafos Disponibles
-
-| Grafo | Uso | Estado |
-|-------|-----|--------|
-| **conversation** | Preguntas en lenguaje natural (PRINCIPAL) | Funcional |
-| **nlp** | Construccion directa de silver/gold | Funcional |
-| **prediction** | Modelo de prediccion ventas Olist | Fase 5 |
-| **evaluation** | Evaluacion offline de metricas | Fase 6 |
-
-### Seleccionar Grafo
-
-En la barra superior de LangGraph Studio, hacer clic en el dropdown y seleccionar:
-- `conversation` para preguntas en lenguaje natural
-
-### Input para el Grafo `conversation`
-
-En LangGraph Studio, expande "Input" y configura los campos:
-
-| Campo | Valor | Descripcion |
-|-------|-------|-------------|
-| `user_query` | Tu pregunta aqui | Pregunta en lenguaje natural en espanol |
-| `current_dataset` | `yelp`, `es`, u `olist` | Dataset a consultar (requerido) |
-
-**Ejemplo de Input:**
-
-```json
-{
-  "user_query": "Tu pregunta aquí",
-  "current_dataset": "yelp"
-}
-```
-
-**Valores para `current_dataset`:** `"yelp"`, `"es"`, `"olist"` o vacío para auto-detectar.
-
-### Casos de Uso para Probar
-
-#### Preguntas Basicas (Funcionan Ahora)
-
-| Pregunta | Dataset | Que Hace |
-|----------|---------|----------|
-| "Cual es la distribucion de ratings?" | yelp | Cuenta reviews por estrellas (1-5) |
-| "Cuantas reseñas hay por mes?" | olist | Tendencia temporal de reviews |
-| "Cual es el sentimiento promedio?" | yelp | Score de sentimiento agregado |
-| "Analiza las reseñas de 3 estrellas" | yelp | Estadisticas de reviews ambiguas |
-| "Cuales son los usuarios mas influyentes?" | yelp | Top usuarios por influence_score |
-| "Cuales son las ventas por mes?" | olist | Revenue mensual agregado |
-
-#### Guardrails (Queries que deben rechazarse)
-
-| Pregunta | Dataset | Error Esperado |
-|----------|---------|----------------|
-| "Cual es la tendencia por mes?" | es | "Dataset ES no tiene fechas" |
-| "Cuales son las ventas?" | yelp | "Solo Olist tiene datos de ventas" |
-| "hola" | - | "Query muy corta" |
-
-### Ejemplo Paso a Paso en Studio
-
-1. **Seleccionar grafo**: Click en dropdown arriba, elegir `conversation`
-2. **Expandir Input**: Click en la seccion "Input" a la izquierda
-3. **Configurar campos**:
-   - En `User Query`: escribir `"Cual es la distribucion de ratings en Yelp?"`
-   - En `Current Dataset`: escribir `"yelp"`
-4. **Click Submit**
-5. **Observar flujo**: Ver como pasa por `router` - `aggregator` - `synthesizer` - `qa`
-6. **Ver resultado**: El nodo final muestra `insights_report` con el resumen
-
-### Input para el Grafo `nlp`
-
-Para construir features directamente sin preguntas:
-
-```json
-{
-  "dataset": "yelp"
-}
-```
 
 ---
 
@@ -326,6 +292,101 @@ LANGSMITH_PROJECT=tfm-agents
 
 ---
 
+## Uso en LangGraph Studio
+
+### Iniciar LangGraph Studio
+
+```bash
+cd tfm-agents
+
+# Activar entorno y ejecutar
+uv run langgraph dev
+```
+
+Esto abrira automaticamente el navegador en `http://127.0.0.1:2024` con LangGraph Studio.
+
+### Grafos Disponibles
+
+| Grafo | Uso | Estado |
+|-------|-----|--------|
+| **conversation** | Preguntas en lenguaje natural (PRINCIPAL) | Funcional |
+| **nlp** | Construccion directa de silver/gold | Funcional |
+| **prediction** | Modelo de prediccion ventas Olist | Fase 5 |
+| **evaluation** | Evaluacion offline de metricas | Fase 6 |
+
+### Seleccionar Grafo
+
+En la barra superior de LangGraph Studio, hacer clic en el dropdown y seleccionar:
+- `conversation` para preguntas en lenguaje natural
+
+### Input para el Grafo `conversation`
+
+En LangGraph Studio, expande "Input" y configura los campos:
+
+| Campo | Valor | Descripcion |
+|-------|-------|-------------|
+| `user_query` | Tu pregunta aqui | Pregunta en lenguaje natural en espanol |
+| `current_dataset` | `yelp`, `es`, u `olist` | Dataset a consultar (requerido) |
+
+**Ejemplo de Input:**
+
+```json
+{
+  "user_query": "Tu pregunta aquí",
+  "current_dataset": "yelp"
+}
+```
+
+**Valores para `current_dataset`:** `"yelp"`, `"es"`, `"olist"` o vacío para auto-detectar.
+
+### Casos de Uso para Probar
+
+#### Preguntas Básicas (Funcionan con Tool Binding)
+
+| Pregunta | Dataset | Tool Invocada | Resultado |
+|----------|---------|---------------|-----------|
+| "Cual es la distribucion de ratings?" | yelp | `get_reviews_distribution` | Conteo por estrellas 1-5 |
+| "Cual es la distribucion de ratings?" | olist | `get_reviews_distribution` | Conteo por score 1-5 |
+| "Cual es la distribucion de ratings?" | es | `get_reviews_distribution` | Conteo por estrellas 1-5 |
+| "Cuantas reseñas hay por mes?" | olist | `get_reviews_by_month` | Tendencia temporal |
+| "Cuantas reseñas hay por mes?" | yelp | `get_reviews_by_month` | Tendencia temporal |
+| "Cuales son las ventas por mes?" | olist | `get_sales_by_month` | Revenue mensual |
+| "Cual es la evolucion de ordenes?" | olist | `get_sales_by_month` | Órdenes por mes |
+| "Analiza las reseñas de 3 estrellas" | yelp | `get_ambiguous_reviews_analysis` | Reviews ambiguas |
+| "Cuales son los usuarios mas influyentes?" | yelp | `get_user_stats` | Top reviewers |
+| "Estadisticas de negocios" | yelp | `get_business_stats` | Métricas de negocios |
+| "Ventas por categoria" | olist | `get_sales_by_category` | Top categorías |
+| "Correlacion reviews y ventas" | olist | `get_reviews_sales_correlation` | Análisis correlación |
+
+#### Guardrails (El LLM detecta automáticamente)
+
+| Pregunta | Dataset | Comportamiento |
+|----------|---------|----------------|
+| "Cual es la tendencia por mes?" | es | Tool retorna error: "Dataset 'es' NO tiene fechas" |
+| "Cuales son las ventas?" | yelp | El LLM sabe que `get_sales_by_month` es solo para olist |
+| "hola" | - | Respuesta directa sin invocar tools |
+
+### Ejemplo Paso a Paso en Studio
+
+1. **Seleccionar grafo**: Click en dropdown arriba, elegir `conversation`
+2. **Expandir Input**: Click en la seccion "Input" a la izquierda
+3. **Configurar campos**:
+   - En `User Query`: escribir `"Cual es la distribucion de ratings en Yelp?"`
+   - En `Current Dataset`: escribir `"yelp"`
+4. **Click Submit**
+5. **Observar flujo**: Ver como pasa por `router` - `aggregator` - `synthesizer` - `qa`
+6. **Ver resultado**: El nodo final muestra `insights_report` con el resumen
+
+### Input para el Grafo `nlp`
+
+Para construir features directamente sin preguntas:
+
+```json
+{
+  "dataset": "yelp"
+}
+```
+
 ## Tests
 
 ### Tests Unitarios (pytest)
@@ -362,13 +423,13 @@ uv run python -c "from tfm.graphs.conversation_graph import conversation_graph; 
 
 ---
 
-## Escenarios de Prueba
+## Escenarios capas de almacenamiento
 
-Esta seccion documenta los diferentes escenarios de prueba segun el estado de los datos.
+Esta seccion documenta los diferentes escenarios para bronze, silver y gold.
 
-### Escenario 1: Solo Bronze (Primera Ejecucion)
+### Escenario 1: Solo Bronze (Primera Ejecución)
 
-**Preparacion:**
+**Preparación:**
 ```bash
 # Eliminar silver y gold si existen (para prueba limpia)
 rm data/silver/*.parquet
@@ -379,22 +440,28 @@ uv run python scripts/build_silver.py --check
 ```
 
 **Comportamiento esperado:**
-- El grafo detecta que silver no existe
-- Ruta: `router -> nlp_worker -> aggregator -> synthesizer -> qa -> respond`
-- `nlp_worker` construye silver layer automaticamente
-- Luego ejecuta agregaciones sobre silver
+- El LLM intenta invocar `get_reviews_distribution`
+- La tool detecta que silver no existe y retorna error con sugerencia
+- El LLM puede invocar `build_dataset_silver` para construir los datos
+- Luego re-intenta la consulta original
 
 **Input en LangSmith:**
 ```json
 {
   "user_query": "Cual es la distribucion de ratings?",
-  "current_dataset": "yelp"
+  "current_dataset": "olist"
 }
+```
+
+**Flujo del grafo:**
+```
+START -> route_query -> call_model -> tools (get_reviews_distribution) 
+      -> call_model -> synthesizer -> qa -> respond -> END
 ```
 
 ### Escenario 2: Silver Existe, Gold No Existe
 
-**Preparacion:**
+**Preparación:**
 ```bash
 # Construir solo silver
 uv run python scripts/build_silver.py --limit 1000 --overwrite
@@ -404,17 +471,20 @@ rm data/gold/*.parquet
 ```
 
 **Comportamiento esperado:**
-- Ruta normal: `router -> aggregator -> synthesizer -> qa -> respond`
-- Las agregaciones se ejecutan sobre silver
-- Gold se construye solo si `needs_nlp_features=true` en el plan
+- El LLM invoca directamente `get_sales_by_month` (para órdenes/ventas)
+- La tool lee datos de silver y retorna resultados
+- El Synthesizer genera el insight
+- Gold solo se construye si se necesitan features NLP
 
 **Input en LangSmith:**
 ```json
 {
-  "user_query": "Cual es el sentimiento promedio de las reseñas?",
-  "current_dataset": "yelp"
+  "user_query": "Cual es la evolucion de ordenes por mes?",
+  "current_dataset": "olist"
 }
 ```
+
+**Tool invocada:** `get_sales_by_month`
 
 ### Escenario 3: Silver y Gold Existen (Flujo Optimo)
 
@@ -564,6 +634,53 @@ from tfm.tools.storage import register_all_silver_tables
 register_all_silver_tables()
 "
 ```
+
+---
+
+## Cómo Agregar Nuevas Tools
+
+El sistema usa **tool binding** lo que hace muy fácil agregar nuevas herramientas:
+
+### 1. Crear la Tool en `src/tfm/tools/analysis_tools.py`
+
+```python
+from langchain_core.tools import tool
+
+@tool
+def mi_nueva_herramienta(dataset: Literal["yelp", "es", "olist"], parametro: int = 10) -> Dict[str, Any]:
+    """
+    Descripción clara de lo que hace esta herramienta.
+    
+    Usa esta herramienta cuando el usuario pregunte sobre:
+    - Caso de uso 1
+    - Caso de uso 2
+    
+    DISPONIBLE PARA: yelp, olist (lista los datasets soportados)
+    
+    Args:
+        dataset: El dataset a analizar
+        parametro: Descripción del parámetro
+        
+    Returns:
+        Diccionario con resultados
+    """
+    # Implementación
+    return {"resultado": "datos"}
+```
+
+### 2. Agregar a `get_all_tools()`
+
+```python
+def get_all_tools() -> List:
+    return [
+        # ... tools existentes ...
+        mi_nueva_herramienta,  # Agregar aquí
+    ]
+```
+
+### 3. El LLM la descubre automáticamente
+
+No hay que modificar el Router ni el grafo. El LLM verá la nueva herramienta y podrá usarla basándose en su descripción.
 
 ---
 

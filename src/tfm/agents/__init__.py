@@ -2,7 +2,7 @@
 Agentes LLM para el sistema TFM.
 
 Los agentes usan LLMs para tareas de razonamiento:
-- Router: planificación y routing de queries
+- Router: planificación y routing de queries con tool binding
 - NLP Worker: coordina ejecución de tools NLP
 - Insight Synthesizer: genera reportes estructurados
 - QA Evaluator: valida resultados y faithfulness
@@ -14,18 +14,33 @@ Principios de diseño:
 - Cada agente tiene una responsabilidad específica
 """
 
-from tfm.agents.router import create_router_agent, route_query
+from tfm.agents.router import (
+    create_router_agent_with_tools,
+    route_query,
+    call_model,
+    should_continue,
+    extract_tool_results,
+    get_tool_node,
+)
 from tfm.agents.nlp_worker import create_nlp_worker, process_nlp_request
 from tfm.agents.insight_synthesizer import create_synthesizer, generate_insights
 from tfm.agents.qa_evaluator import create_qa_evaluator, evaluate_result
 
 __all__ = [
-    "create_router_agent",
+    # Router
+    "create_router_agent_with_tools",
     "route_query",
+    "call_model",
+    "should_continue",
+    "extract_tool_results",
+    "get_tool_node",
+    # NLP Worker
     "create_nlp_worker",
     "process_nlp_request",
+    # Synthesizer
     "create_synthesizer",
     "generate_insights",
+    # QA
     "create_qa_evaluator",
     "evaluate_result",
 ]

@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     langsmith_api_key: str = Field(default="", description="LangSmith API Key")
     
     # === LangSmith ===
-    langsmith_tracing: bool = Field(default=True, description="Habilitar tracing")
+    langsmith_tracing: bool = Field(default=False, description="Habilitar tracing")
     langsmith_project: str = Field(default="tfm-agents", description="Nombre del proyecto en LangSmith")
     langsmith_endpoint: str = Field(
         default="https://api.smith.langchain.com",

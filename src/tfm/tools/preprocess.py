@@ -26,6 +26,16 @@ from tfm.tools.io_loaders import (
 )
 
 
+# Tamanos de muestra por defecto para desarrollo
+DEFAULT_SAMPLE_SIZES = {
+    "yelp_reviews": 100_000,  # Yelp tiene 7M, usamos 100K para desarrollo
+    "yelp_users": 100_000,
+    "yelp_business": None,   # Business es pequeno (~150K), cargar completo
+    "es": None,              # ES es manejable
+    "olist": None,           # Olist es pequeno
+}
+
+
 def build_silver_yelp(
     limit: Optional[int] = None,
     overwrite: bool = False
@@ -65,7 +75,7 @@ def build_silver_yelp(
     
     print(f"Cargando reviews de Yelp (limit={limit})...")
     df = load_yelp_reviews(limit=limit)
-    
+    print(f"Reviews cargadas: {df.height:,} filas")
     print("Aplicando transformaciones...")
     # Parsear fecha
     df_silver = df.with_columns([
@@ -186,6 +196,73 @@ def build_silver_yelp_users(
     print(f"Guardando silver: {output_path}")
     df_silver.write_parquet(output_path)
     print(f"Guardado: {df_silver.height:,} filas")
+    
+    return output_path
+
+
+def build_silver_yelp_business(
+    overwrite: bool = False
+) -> Path:
+    """
+    Construye silver layer para negocios de Yelp.
+    
+    Transformaciones:
+    - Extrae categories como lista
+    - Calcula category_count
+    - Normaliza campos de ubicacion
+    - Mantiene metricas (stars, review_count)
+    
+    Args:
+        overwrite: Si sobrescribir si ya existe
+        
+    Returns:
+        Path al archivo silver generado
+    """
+    settings = get_settings()
+    output_path = settings.silver_dir / SILVER_FILES["yelp_business"]
+    
+    if output_path.exists() and not overwrite:
+        print(f"Silver ya existe: {output_path}")
+        return output_path
+    
+    settings.ensure_dirs()
+    
+    print("Cargando business de Yelp...")
+    df = load_yelp_business()
+    
+    print("Procesando business...")
+    # Procesar categorias
+    df_silver = df.with_columns([
+        # Categories puede ser null o string separado por ", "
+        pl.col("categories").fill_null("").alias("categories_str"),
+    ]).with_columns([
+        # Contar categorias
+        pl.when(pl.col("categories_str") == "")
+        .then(0)
+        .otherwise(
+            pl.col("categories_str")
+              .str.split(", ")
+              .list.len()
+        )
+        .alias("category_count"),
+        # Limpiar nombre
+        pl.col("name").str.strip_chars().alias("name_clean"),
+    ])
+    
+    # Seleccionar columnas relevantes
+    df_silver = df_silver.select([
+        "business_id", "name_clean", "city", "state",
+        "postal_code", "latitude", "longitude",
+        "stars", "review_count", "is_open",
+        "categories_str", "category_count",
+    ]).rename({
+        "name_clean": "name",
+        "categories_str": "categories",
+    })
+    
+    print(f"Guardando silver: {output_path}")
+    df_silver.write_parquet(output_path)
+    print(f"Guardado: {df_silver.height:,} negocios")
     
     return output_path
 
@@ -389,45 +466,61 @@ def build_silver_olist(
     return orders_path, reviews_path
 
 
-def build_all_silver(overwrite: bool = False) -> dict:
+def build_all_silver(
+    overwrite: bool = False,
+    sample_size: Optional[int] = None
+) -> dict:
     """
     Construye todos los archivos silver.
     
     Args:
         overwrite: Si sobrescribir archivos existentes
+        sample_size: Tamano de muestra para datasets grandes (None = usar defaults)
         
     Returns:
         Dict con paths de archivos generados
     """
     results = {}
     
+    # Usar sample_size proporcionado o defaults
+    yelp_limit = sample_size or DEFAULT_SAMPLE_SIZES["yelp_reviews"]
+    user_limit = sample_size or DEFAULT_SAMPLE_SIZES["yelp_users"]
+    
     print("=" * 60)
     print("CONSTRUYENDO SILVER LAYER")
+    print(f"Sample size: {sample_size or 'defaults'}")
     print("=" * 60)
     
     # Yelp reviews
-    print("\n[1/4] Yelp Reviews...")
+    print("\n[1/5] Yelp Reviews...")
     try:
-        results["yelp_reviews"] = str(build_silver_yelp(overwrite=overwrite))
+        results["yelp_reviews"] = str(build_silver_yelp(limit=yelp_limit, overwrite=overwrite))
     except Exception as e:
         results["yelp_reviews"] = f"Error: {e}"
     
     # Yelp users
-    print("\n[2/4] Yelp Users...")
+    print("\n[2/5] Yelp Users...")
     try:
-        results["yelp_users"] = str(build_silver_yelp_users(overwrite=overwrite))
+        results["yelp_users"] = str(build_silver_yelp_users(limit=user_limit, overwrite=overwrite))
     except Exception as e:
         results["yelp_users"] = f"Error: {e}"
     
+    # Yelp business
+    print("\n[3/5] Yelp Business...")
+    try:
+        results["yelp_business"] = str(build_silver_yelp_business(overwrite=overwrite))
+    except Exception as e:
+        results["yelp_business"] = f"Error: {e}"
+    
     # ES reviews
-    print("\n[3/4] ES Reviews...")
+    print("\n[4/5] ES Reviews...")
     try:
         results["es"] = str(build_silver_es(overwrite=overwrite))
     except Exception as e:
         results["es"] = f"Error: {e}"
     
     # Olist
-    print("\n[4/4] Olist...")
+    print("\n[5/5] Olist...")
     try:
         orders_path, reviews_path = build_silver_olist(overwrite=overwrite)
         results["olist_orders"] = str(orders_path)

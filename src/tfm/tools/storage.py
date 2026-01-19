@@ -250,8 +250,99 @@ def register_all_silver_tables() -> Dict[str, bool]:
 def close_connection():
     """
     Cierra la conexion a DuckDB.
+    
+    Importante llamar al final de scripts para liberar el archivo.
     """
     global _connection
     if _connection is not None:
-        _connection.close()
+        try:
+            _connection.close()
+        except Exception:
+            pass  # Ignorar errores al cerrar
         _connection = None
+
+
+def try_register_parquet_table(
+    table_name: str,
+    parquet_path: Path,
+    replace: bool = True,
+    silent: bool = False
+) -> bool:
+    """
+    Intenta registrar un Parquet en DuckDB sin lanzar excepciones.
+    
+    Version robusta de register_parquet_table que maneja errores
+    de conexion (archivo bloqueado, etc.) de forma graceful.
+    
+    Args:
+        table_name: Nombre de la tabla/vista
+        parquet_path: Ruta al archivo Parquet
+        replace: Si reemplazar si ya existe
+        silent: Si True, no imprime mensajes de error
+        
+    Returns:
+        True si se registro correctamente, False si hubo error
+    """
+    try:
+        return register_parquet_table(table_name, parquet_path, replace)
+    except duckdb.IOException as e:
+        if not silent:
+            print(f"  WARN: No se pudo registrar {table_name} en DuckDB (archivo bloqueado)")
+        return False
+    except FileNotFoundError:
+        if not silent:
+            print(f"  WARN: Parquet no encontrado: {parquet_path}")
+        return False
+    except Exception as e:
+        if not silent:
+            print(f"  WARN: Error registrando {table_name}: {e}")
+        return False
+
+
+def is_duckdb_available() -> bool:
+    """
+    Verifica si DuckDB esta disponible (no bloqueado por otro proceso).
+    
+    Returns:
+        True si se puede conectar, False si esta bloqueado
+    """
+    global _connection
+    
+    # Si ya tenemos conexion, esta disponible
+    if _connection is not None:
+        return True
+    
+    settings = get_settings()
+    settings.ensure_dirs()
+    
+    try:
+        # Intentar conectar
+        test_conn = duckdb.connect(str(settings.warehouse_path))
+        test_conn.close()
+        return True
+    except duckdb.IOException:
+        return False
+    except Exception:
+        return False
+
+
+def register_all_gold_tables() -> Dict[str, bool]:
+    """
+    Registra todas las tablas gold existentes en DuckDB.
+    
+    Returns:
+        Dict con resultado por tabla
+    """
+    from tfm.config.settings import GOLD_FILES
+    
+    settings = get_settings()
+    results = {}
+    
+    for table_name, filename in GOLD_FILES.items():
+        path = settings.gold_dir / filename
+        if path.exists():
+            results[table_name] = try_register_parquet_table(table_name, path, silent=True)
+        else:
+            results[table_name] = False
+    
+    return results

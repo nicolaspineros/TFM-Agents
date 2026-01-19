@@ -45,6 +45,7 @@ runs/*.db
 # Logs
 *.log
 logs/
+img/
 
 # Data
 data/

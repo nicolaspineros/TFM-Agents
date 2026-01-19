@@ -85,9 +85,9 @@ class TestYelpLoader:
         if not info["exists"]:
             pytest.skip("Archivo Yelp reviews no existe")
         
-        df = load_yelp_reviews(limit=100)
+        df = load_yelp_reviews(limit=10000)
         
-        assert df.height == 100
+        assert df.height == 10000
         assert "stars" in df.columns
         assert "text" in df.columns
         assert "review_id" in df.columns
@@ -100,9 +100,9 @@ class TestYelpLoader:
         if not info["exists"]:
             pytest.skip("Archivo Yelp users no existe")
         
-        df = load_yelp_users(limit=100)
+        df = load_yelp_users(limit=10000)
         
-        assert df.height == 100
+        assert df.height == 10000
         assert "user_id" in df.columns
 
 
@@ -117,9 +117,9 @@ class TestESLoader:
         if not info["exists"]:
             pytest.skip("Archivo ES reviews no existe")
         
-        df = load_es_reviews(limit=100)
+        df = load_es_reviews(limit=10000)
         
-        assert df.height == 100
+        assert df.height == 10000
         assert "stars" in df.columns
 
 
@@ -134,9 +134,9 @@ class TestOlistLoader:
         if not info["exists"]:
             pytest.skip("Archivo Olist orders no existe")
         
-        df = load_olist_data("orders", limit=100)
+        df = load_olist_data("orders", limit=10000)
         
-        assert df.height == 100
+        assert df.height == 10000
         assert "order_id" in df.columns
     
     def test_load_olist_reviews(self):
@@ -147,9 +147,9 @@ class TestOlistLoader:
         if not info["exists"]:
             pytest.skip("Archivo Olist reviews no existe")
         
-        df = load_olist_data("reviews", limit=100)
+        df = load_olist_data("reviews", limit=10000)
         
-        assert df.height == 100
+        assert df.height == 10000
         assert "review_score" in df.columns
     
     def test_load_olist_invalid_table(self):

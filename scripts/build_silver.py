@@ -24,6 +24,7 @@ sys.path.insert(0, str(project_root / "src"))
 from tfm.tools.preprocess import (
     build_silver_yelp,
     build_silver_yelp_users,
+    build_silver_yelp_business,
     build_silver_es,
     build_silver_olist,
     build_all_silver,
@@ -38,7 +39,7 @@ def main():
     )
     parser.add_argument(
         "--dataset",
-        choices=["yelp", "yelp_users", "es", "olist", "all"],
+        choices=["yelp", "yelp_users", "yelp_business", "es", "olist", "all"],
         default="all",
         help="Dataset a construir (default: all)"
     )
@@ -103,7 +104,7 @@ def main():
     
     try:
         if args.dataset == "all":
-            results = build_all_silver(overwrite=args.overwrite)
+            results = build_all_silver(overwrite=args.overwrite, sample_size=args.limit)
             for name, path in results.items():
                 print(f"  {name}: {path}")
         
@@ -114,6 +115,10 @@ def main():
         elif args.dataset == "yelp_users":
             path = build_silver_yelp_users(limit=args.limit, overwrite=args.overwrite)
             print(f"  yelp_users: {path}")
+        
+        elif args.dataset == "yelp_business":
+            path = build_silver_yelp_business(overwrite=args.overwrite)
+            print(f"  yelp_business: {path}")
         
         elif args.dataset == "es":
             path = build_silver_es(limit=args.limit, overwrite=args.overwrite)

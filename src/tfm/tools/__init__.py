@@ -43,6 +43,7 @@ from tfm.tools.io_loaders import (
 from tfm.tools.preprocess import (
     build_silver_yelp,
     build_silver_yelp_users,
+    build_silver_yelp_business,
     build_silver_es,
     build_silver_olist,
     build_all_silver,
@@ -59,12 +60,41 @@ from tfm.tools.nlp_utils import (
     clean_text_basic,
     clean_text_spanish,
     clean_text_portuguese,
-    compute_sentiment_baseline,
-    compute_sentiment_vader,
-    compute_sentiment_combined,
     compute_user_influence_score,
     extract_text_features,
     analyze_star_distribution,
+)
+# Nota: Las funciones compute_sentiment_* se importan desde sentiment.py
+# no desde nlp_utils.py para evitar conflictos
+from tfm.tools.sentiment import (
+    compute_sentiment_baseline,
+    compute_sentiment_vader,
+    compute_sentiment_combined,
+    compute_sentiment_batch,
+    classify_ambiguous_reviews,
+    extract_text_features,
+    compute_user_influence_score,
+)
+from tfm.tools.aggregations import (
+    aggregate_reviews_by_month,
+    aggregate_reviews_by_stars,
+    aggregate_olist_sales_by_month,
+    aggregate_olist_by_category,
+    aggregate_yelp_user_stats,
+    aggregate_by_text_length,
+    aggregate_ambiguous_reviews,
+    aggregate_business_stats,
+    correlate_reviews_business,
+    aggregate_olist_reviews_sales,
+    get_distribution,
+    get_top_entities,
+)
+from tfm.tools.features import (
+    build_gold_features,
+    build_olist_sales_features,
+    build_yelp_user_features,
+    get_feature_stats,
+    get_gold_status,
 )
 
 __all__ = [
@@ -87,6 +117,7 @@ __all__ = [
     # Preprocess
     "build_silver_yelp",
     "build_silver_yelp_users",
+    "build_silver_yelp_business",
     "build_silver_es",
     "build_silver_olist",
     "build_all_silver",
@@ -97,14 +128,38 @@ __all__ = [
     "get_available_values",
     "get_date_range",
     "check_artifacts_status",
-    # NLP
+    # NLP Utils
     "clean_text_basic",
     "clean_text_spanish",
     "clean_text_portuguese",
-    "compute_sentiment_baseline",
-    "compute_sentiment_vader",
-    "compute_sentiment_combined",
     "compute_user_influence_score",
     "extract_text_features",
     "analyze_star_distribution",
+    # Sentiment
+    "compute_sentiment_baseline",
+    "compute_sentiment_vader",
+    "compute_sentiment_combined",
+    "compute_sentiment_batch",
+    "classify_ambiguous_reviews",
+    "extract_text_features",
+    "compute_user_influence_score",
+    # Aggregations
+    "aggregate_reviews_by_month",
+    "aggregate_reviews_by_stars",
+    "aggregate_olist_sales_by_month",
+    "aggregate_olist_by_category",
+    "aggregate_yelp_user_stats",
+    "aggregate_by_text_length",
+    "aggregate_ambiguous_reviews",
+    "aggregate_business_stats",
+    "correlate_reviews_business",
+    "aggregate_olist_reviews_sales",
+    "get_distribution",
+    "get_top_entities",
+    # Features
+    "build_gold_features",
+    "build_olist_sales_features",
+    "build_yelp_user_features",
+    "get_feature_stats",
+    "get_gold_status",
 ]

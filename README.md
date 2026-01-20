@@ -59,33 +59,49 @@ Este enfoque permite:
 
 ```
 tfm-agents/
-├── data/
-│   ├── bronze/          # Datos crudos (JSONL, CSV)
-│   │   ├── yelp/
-│   │   ├── rese_esp/
-│   │   └── olist_ecommerce/
-│   ├── silver/          # Datos limpios y normalizados (Parquet)
-│   └── gold/            # Features, agregados, métricas (Parquet + JSON)
-├── warehouse/
-│   └── tfm.duckdb       # Base de datos analítica
-├── runs/                # Checkpoints de grafos (SQLite)
-├── docs/
-│   └── data_contracts.md
-├── notebooks/
-│   ├── 01_eda_yelp.ipynb
-│   ├── 02_eda_es.ipynb
-│   └── 03_eda_olist.ipynb
-├── src/
-│   └── tfm/
-│       ├── config/      # Configuración y settings
-│       ├── schemas/     # Pydantic models (State, Request, Outputs)
-│       ├── tools/       # Herramientas deterministas
-│       ├── agents/      # Agentes LLM
-│       └── graphs/      # Grafos LangGraph
-├── tests/
-├── langgraph.json
-├── pyproject.toml
-└── README.md
+|-- data/
+|   |-- bronze/          # Datos crudos (JSONL, CSV)
+|   |   |-- yelp/
+|   |   |-- rese_esp/
+|   |   +-- olist_ecommerce/
+|   |-- silver/          # Datos limpios y normalizados (Parquet)
+|   |-- gold/            # Features, agregados, metricas (Parquet + JSON)
+|   +-- test/            # Datos de prueba
+|       +-- es_annotated_reviews.csv  # Corpus anotado espanol (300 reviews)
+|-- models/
+|   |-- sentiment/       # Modelos de sentimiento entrenados
+|   |   |-- unified_svm_sentiment.joblib
+|   |   |-- yelp_svm_sentiment.joblib
+|   |   |-- es_logistic_sentiment.joblib
+|   |   +-- olist_svm_sentiment.joblib
+|   +-- aspects/         # Modelos de aspectos
+|       |-- aspect_classifier_lr.joblib
+|       |-- aspect_tfidf.joblib
+|       |-- aspect_taxonomy.json
+|       +-- sentiment_lexicon.json
+|-- warehouse/
+|   +-- tfm.duckdb       # Base de datos analitica
+|-- runs/                # Checkpoints de grafos (SQLite)
+|-- docs/
+|   +-- data_contracts.md
+|-- notebooks/
+|   |-- 01_eda_yelp.ipynb
+|   |-- 02_eda_es.ipynb
+|   |-- 03_eda_olist.ipynb
+|   |-- 04_pruebas_fase3.ipynb
+|   |-- 05_nlp_sentiment_models.ipynb   # Entrenamiento modelos sentimiento
+|   +-- 06_nlp_aspect_extraction.ipynb  # Extraccion de aspectos
+|-- src/
+|   +-- tfm/
+|       |-- config/      # Configuracion y settings
+|       |-- schemas/     # Pydantic models (State, Request, Outputs)
+|       |-- tools/       # Herramientas deterministas + NLP
+|       |-- agents/      # Agentes LLM
+|       +-- graphs/      # Grafos LangGraph
+|-- tests/
+|-- langgraph.json
+|-- pyproject.toml
++-- README.md
 ```
 
 ---
@@ -150,10 +166,32 @@ El sistema expone las siguientes herramientas que el LLM puede invocar:
 
 ### Tools de Utilidad
 
-| Tool | Descripción | Uso |
+| Tool | Descripcion | Uso |
 |------|-------------|-----|
-| `get_dataset_status` | Verifica si los datos silver existen | Diagnóstico |
-| `build_dataset_silver` | Construye capa silver para un dataset | Preparación |
+| `get_dataset_status` | Verifica si los datos silver existen | Diagnostico |
+| `build_dataset_silver` | Construye capa silver para un dataset | Preparacion |
+
+### Tools de NLP (Modelos ML Entrenados)
+
+| Tool | Descripcion | Uso |
+|------|-------------|-----|
+| `get_sentiment_distribution` | Distribucion de sentimiento en todo el dataset o filtrado | Agregacion NLP |
+| `get_aspect_distribution` | Aspectos mencionados (calidad, precio, envio) y su frecuencia | Agregacion NLP |
+| `get_ambiguous_reviews_sentiment` | Analiza sentimiento real de reseñas de 3 estrellas | Analisis especial |
+| `analyze_sentiment` | Analiza sentimiento de texto individual | Consulta puntual |
+| `analyze_review_complete` | Analisis completo de una reseña | Consulta puntual |
+| `get_nlp_models_status` | Verifica modelos NLP disponibles | Diagnostico |
+
+**Filtros disponibles:**
+- `year`: Filtrar por anio (yelp, olist)
+- `stars`: Filtrar por estrellas (1-5)
+- `sentiment_filter`: Filtrar por sentimiento (positive/negative/neutral)
+
+**Metricas de los modelos (F1 Score):**
+- Yelp (SVM): 0.858
+- ES (Logistic): 0.712
+- Olist (SVM): 0.832
+- Unified (SVM): 0.786
 
 ---
 
@@ -227,13 +265,16 @@ Las reseñas con `stars == 3` son consideradas **ambiguas**. El sistema:
 - [x] QA Evaluator con checks determinísticos
 - [x] Soporte para todos los datasets (yelp, es, olist) en las herramientas
 
-### Fase 5: Prediccion y ML Avanzado
-- [ ] Features temporales (lag, rolling)
-- [ ] Modelo de prediccion de ventas (Olist)
-- [ ] Correlacion sentimiento - ventas
-- [ ] Modelos NLP propios + clasificadores
+### Fase 5: NLP y ML Avanzado (EN PROGRESO)
+- [x] Modelos de sentimiento TF-IDF + SVM/LogisticRegression
+- [x] Modelos por idioma (yelp, es, olist) y modelo unificado
+- [x] Extraccion de aspectos (calidad, precio, envio, servicio, etc.)
+- [x] Sentimiento por aspecto con ventana de contexto
+- [x] Corpus anotado ES (300 reviews) para validacion
+- [x] Tools NLP integradas en el sistema agentic
+- [ ] Correlacion sentimiento - ventas (Olist)
 
-### Fase 6: Evaluacion y Refinamiento
+### Fase 6: Prediccion de Ventas y Evaluacion
 - [ ] Metricas ML (F1, MAE)
 - [ ] Integracion LangSmith
 - [ ] Evaluadores de faithfulness
@@ -247,11 +288,20 @@ Las reseñas con `stars == 3` son consideradas **ambiguas**. El sistema:
 # init
 uv init
 
-#  Añadir dependencias
+#  Añadir dependencias core
 uv add langgraph langchain langchain-openai
 uv add "langgraph-cli[inmem]" --dev
 uv add polars pyarrow duckdb pydantic pydantic-settings
-uv add pytest jupyterlab --dev
+
+# Dependencias para notebooks de NLP/ML (05, 06)
+uv add scikit-learn pandas numpy joblib
+uv add matplotlib seaborn
+
+# Dependencias para análisis de sentimiento
+uv add vadersentiment
+
+# Dependencias de desarrollo
+uv add pytest jupyterlab ipykernel --dev
 
 # Instalar el paquete local (IMPORTANTE)
 uv pip install -e .
@@ -265,6 +315,44 @@ uv run python scripts/build_silver.py --limit 10000
 # Ejecutar LangGraph Studio
 uv run langgraph dev
 ```
+
+### Instalacion rapida para notebooks de NLP
+
+Si solo necesitas ejecutar los notebooks `05_nlp_sentiment_models.ipynb` y `06_nlp_aspect_extraction.ipynb`:
+
+```bash
+# Paquetes mínimos requeridos para notebooks NLP/ML
+uv add scikit-learn pandas numpy matplotlib seaborn joblib
+
+# Verificar instalacion
+uv run python -c "from sklearn.feature_extraction.text import TfidfVectorizer; print('sklearn OK')"
+```
+
+### Notebooks de NLP/ML
+
+| Notebook | Descripcion | Output |
+|----------|-------------|--------|
+| `05_nlp_sentiment_models.ipynb` | Entrenamiento y comparacion de modelos de sentimiento | `models/sentiment/*.joblib` |
+| `06_nlp_aspect_extraction.ipynb` | Extraccion de aspectos y sentimiento por aspecto | `models/aspects/*.joblib` |
+
+**Ejecutar notebooks para entrenar modelos:**
+
+```bash
+# Abrir Jupyter Lab
+uv run jupyter lab
+
+# Navegar a notebooks/ y ejecutar:
+# 1. 05_nlp_sentiment_models.ipynb (entrena modelos de sentimiento)
+# 2. 06_nlp_aspect_extraction.ipynb (entrena modelos de aspectos)
+```
+
+**Modelos generados:**
+- `models/sentiment/unified_svm_sentiment.joblib` - Modelo unificado (recomendado)
+- `models/sentiment/yelp_svm_sentiment.joblib` - Especializado ingles
+- `models/sentiment/es_logistic_sentiment.joblib` - Especializado espanol
+- `models/sentiment/olist_svm_sentiment.joblib` - Especializado portugues
+- `models/aspects/aspect_classifier_lr.joblib` - Clasificador multi-label de aspectos
+- `models/aspects/aspect_taxonomy.json` - Taxonomia de aspectos multi-idioma
 
 ---
 
@@ -287,8 +375,13 @@ LANGSMITH_PROJECT=tfm-agents
 - `langchain` / `langchain-openai` - Integración LLM
 - `duckdb` - Warehouse analítico
 - `polars` - Procesamiento de datos eficiente
+- `pandas` / `numpy` - Análisis de datos y operaciones numéricas
 - `pyarrow` - Soporte Parquet
 - `pydantic` - Validación de esquemas
+- `scikit-learn` - Machine Learning y métricas
+- `vadersentiment` - Análisis de sentimiento (inglés)
+- `matplotlib` / `seaborn` - Visualización
+- `joblib` - Serialización de modelos
 
 ---
 
@@ -516,6 +609,64 @@ uv run python scripts/build_silver.py --overwrite
 uv run python scripts/build_gold.py --overwrite
 ```
 
+### Escenario 5: Distribucion de Sentimiento NLP
+
+**Preparacion (ejecutar notebooks primero):**
+```bash
+# Verificar modelos existen
+ls models/sentiment/*.joblib
+
+# Verificar via tool
+uv run python -c "from tfm.tools.nlp_models import get_nlp_models_status; print(get_nlp_models_status.invoke({}))"
+```
+
+**Input:**
+```json
+{
+  "user_query": "Cual es la distribucion de sentimiento?",
+  "current_dataset": "yelp"
+}
+```
+
+**Respuesta esperada:**
+- Total analizado: ~500,000 reseñas
+- Distribucion: positive 63%, neutral 5%, negative 32%
+- Sentimiento promedio: 0.32 (positivo)
+
+**Tool invocada:** `get_sentiment_distribution`
+
+### Escenario 6: Sentimiento de reseñas de 3 Estrellas
+
+**Input:**
+```json
+{
+  "user_query": "Las reseñas de 3 estrellas son mas positivas o negativas?",
+  "current_dataset": "olist"
+}
+```
+
+**Respuesta esperada:**
+- Total reseñas de 3 estrellas: ~3,500
+- Distribucion: positive 35%, neutral 19%, negative 46%
+- Interpretacion: Tendencia NEGATIVA
+
+**Tool invocada:** `get_ambiguous_reviews_sentiment`
+
+### Escenario 7: Aspectos en reseñas Negativas
+
+**Input:**
+```json
+{
+  "user_query": "Cuales son los problemas mas mencionados en reseñas negativas?",
+  "current_dataset": "yelp"
+}
+```
+
+**Respuesta esperada:**
+- Top aspectos: service (55%), product (37%), price (34%)
+- Desglose de sentimiento por cada aspecto
+
+**Tool invocada:** `get_aspect_distribution` con filtro sentiment=negative
 
 ---
 
@@ -550,13 +701,53 @@ uv run python scripts/build_gold.py --overwrite
 | "hola" | - | "Query muy corta" |
 | "Predice las ventas del proximo mes" | olist | Fase 5 (no implementado) |
 
-### Casos NLP (Cuando Gold Existe)
+### Casos NLP sobre Datasets (Uso Principal)
 
-| Pregunta | Dataset | Requiere | Descripcion |
-|----------|---------|----------|-------------|
-| "Cual es el sentimiento promedio?" | yelp | gold | Score promedio de sentimiento |
-| "Cuantas reseñas positivas hay?" | yelp | gold | Conteo por label |
-| "Que porcentaje son negativas?" | olist | gold | Distribucion sentimiento |
+| Pregunta | Dataset | Tool | Descripcion |
+|----------|---------|------|-------------|
+| "Cual es la distribucion de sentimiento?" | yelp | `get_sentiment_distribution` | % positivo/neutral/negativo |
+| "Cuantas reseñas positivas hay?" | olist | `get_sentiment_distribution` | Conteo por sentimiento |
+| "Cual es el sentimiento promedio?" | yelp | `get_sentiment_distribution` | Media de sentimiento |
+| "Que porcentaje de reseñas son negativas?" | olist | `get_sentiment_distribution` | Distribucion |
+| "Cual es el sentimiento de las reseñas de 3 estrellas?" | yelp | `get_ambiguous_reviews_sentiment` | Tendencia real |
+| "Las reseñas ambiguas son mas positivas o negativas?" | olist | `get_ambiguous_reviews_sentiment` | Analisis ambiguas |
+| "Cuales son los aspectos mas mencionados?" | yelp | `get_aspect_distribution` | Frecuencia de aspectos |
+| "De que hablan las reseñas negativas?" | olist | `get_aspect_distribution` | Aspectos en negativas |
+| "Que problemas mencionan las reseñas de 1 estrella?" | yelp | `get_aspect_distribution` | Aspectos por stars |
+
+### Ejemplos de Inputs NLP
+
+**Distribucion de sentimiento general:**
+```json
+{
+  "user_query": "Cual es la distribucion de sentimiento?",
+  "current_dataset": "yelp"
+}
+```
+
+**Sentimiento de reseñas de 3 estrellas:**
+```json
+{
+  "user_query": "Las reseñas de 3 estrellas son mas positivas o negativas?",
+  "current_dataset": "olist"
+}
+```
+
+**Aspectos en reseñas negativas:**
+```json
+{
+  "user_query": "Cuales son los problemas mas mencionados en reseñas negativas?",
+  "current_dataset": "yelp"
+}
+```
+
+**Analisis de reseña individual (uso secundario):**
+```json
+{
+  "user_query": "Analiza esta reseña: 'Excelente producto, muy buena calidad'",
+  "current_dataset": "es"
+}
+```
 
 ---
 
@@ -706,6 +897,47 @@ El sistema debera:
 - [ ] Exportar resultados a CSV/Excel
 - [ ] Filtros por fecha en lenguaje natural ("ultimos 6 meses")
 - [ ] Comparaciones entre datasets
+- [ ] Correlacion sentimiento-ventas (Olist)
+
+---
+
+## Verificacion de Tools NLP
+
+### Verificar modelos cargados
+
+```bash
+uv run python -c "from tfm.tools.nlp_models import get_nlp_models_status; print(get_nlp_models_status.invoke({}))"
+```
+
+### Probar distribucion de sentimiento (dataset completo)
+
+```bash
+uv run python -c "from tfm.tools.nlp_models import get_sentiment_distribution; import json; print(json.dumps(get_sentiment_distribution.invoke({'dataset': 'olist'}), indent=2))"
+```
+
+### Probar sentimiento de reseñas ambiguas
+
+```bash
+uv run python -c "from tfm.tools.nlp_models import get_ambiguous_reviews_sentiment; import json; print(json.dumps(get_ambiguous_reviews_sentiment.invoke({'dataset': 'yelp'}), indent=2))"
+```
+
+### Probar distribucion de aspectos
+
+```bash
+uv run python -c "from tfm.tools.nlp_models import get_aspect_distribution; import json; print(json.dumps(get_aspect_distribution.invoke({'dataset': 'yelp', 'sentiment_filter': 'negative'}), indent=2))"
+```
+
+### Probar analisis de reseña individual
+
+```bash
+uv run python -c "from tfm.tools.nlp_models import analyze_sentiment; print(analyze_sentiment.invoke({'text': 'Excelente producto', 'model': 'unified'}))"
+```
+
+### Listar todas las tools disponibles
+
+```bash
+uv run python -c "from tfm.tools.analysis_tools import get_all_tools; [print(t.name) for t in get_all_tools()]"
+```
 
 ---
 

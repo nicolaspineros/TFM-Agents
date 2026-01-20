@@ -111,6 +111,17 @@ from tfm.tools.analysis_tools import (
     get_dataset_status,
     build_dataset_silver,
 )
+from tfm.tools.nlp_models import (
+    # Tools principales para datasets completos
+    get_sentiment_distribution,
+    get_aspect_distribution,
+    get_ambiguous_reviews_sentiment,
+    # Tools para analisis individual
+    analyze_sentiment,
+    analyze_review_complete,
+    get_nlp_models_status,
+    get_nlp_tools,
+)
 
 __all__ = [
     # Storage
@@ -191,4 +202,13 @@ __all__ = [
     "get_reviews_sales_correlation",
     "get_dataset_status",
     "build_dataset_silver",
+    # NLP Tools para datasets completos
+    "get_sentiment_distribution",
+    "get_aspect_distribution",
+    "get_ambiguous_reviews_sentiment",
+    # NLP Tools para analisis individual
+    "analyze_sentiment",
+    "analyze_review_complete",
+    "get_nlp_models_status",
+    "get_nlp_tools",
 ]

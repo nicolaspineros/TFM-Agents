@@ -419,9 +419,12 @@ def get_all_tools() -> List:
     """
     Retorna lista de todas las tools disponibles para bindear al LLM.
     
-    El LLM usará estas herramientas para responder preguntas.
+    El LLM usara estas herramientas para responder preguntas.
+    Incluye tools de agregacion y tools de NLP.
     """
-    return [
+    from tfm.tools.nlp_models import get_nlp_tools
+    
+    aggregation_tools = [
         get_reviews_distribution,
         get_reviews_by_month,
         get_sales_by_month,
@@ -434,6 +437,10 @@ def get_all_tools() -> List:
         get_dataset_status,
         build_dataset_silver,
     ]
+    
+    nlp_tools = get_nlp_tools()
+    
+    return aggregation_tools + nlp_tools
 
 
 def get_tools_summary() -> str:

@@ -1,0 +1,253 @@
+{
+  "quality": {
+    "en": [
+      "quality",
+      "material",
+      "build",
+      "construction",
+      "durable",
+      "sturdy",
+      "solid",
+      "well made",
+      "poorly made",
+      "cheap",
+      "flimsy"
+    ],
+    "es": [
+      "calidad",
+      "material",
+      "construccion",
+      "duradero",
+      "solido",
+      "resistente",
+      "bien hecho",
+      "mal hecho",
+      "barato",
+      "fragil"
+    ],
+    "pt": [
+      "qualidade",
+      "material",
+      "construcao",
+      "duravel",
+      "solido",
+      "resistente",
+      "bem feito",
+      "mal feito",
+      "barato",
+      "fragil"
+    ]
+  },
+  "price": {
+    "en": [
+      "price",
+      "cost",
+      "value",
+      "money",
+      "expensive",
+      "cheap",
+      "affordable",
+      "worth",
+      "overpriced",
+      "bargain"
+    ],
+    "es": [
+      "precio",
+      "costo",
+      "valor",
+      "dinero",
+      "caro",
+      "barato",
+      "economico",
+      "vale",
+      "sobreprecio",
+      "ganga"
+    ],
+    "pt": [
+      "preco",
+      "custo",
+      "valor",
+      "dinheiro",
+      "caro",
+      "barato",
+      "economico",
+      "vale",
+      "sobrepreco",
+      "pechincha"
+    ]
+  },
+  "shipping": {
+    "en": [
+      "shipping",
+      "delivery",
+      "arrived",
+      "package",
+      "packaging",
+      "box",
+      "fast",
+      "slow",
+      "damaged",
+      "tracking"
+    ],
+    "es": [
+      "envio",
+      "entrega",
+      "llego",
+      "paquete",
+      "empaque",
+      "caja",
+      "rapido",
+      "lento",
+      "danado",
+      "seguimiento"
+    ],
+    "pt": [
+      "envio",
+      "entrega",
+      "chegou",
+      "pacote",
+      "embalagem",
+      "caixa",
+      "rapido",
+      "lento",
+      "danificado",
+      "rastreamento"
+    ]
+  },
+  "service": {
+    "en": [
+      "service",
+      "customer",
+      "support",
+      "seller",
+      "response",
+      "help",
+      "communication",
+      "return",
+      "refund"
+    ],
+    "es": [
+      "servicio",
+      "cliente",
+      "soporte",
+      "vendedor",
+      "respuesta",
+      "ayuda",
+      "comunicacion",
+      "devolucion",
+      "reembolso"
+    ],
+    "pt": [
+      "servico",
+      "cliente",
+      "suporte",
+      "vendedor",
+      "resposta",
+      "ajuda",
+      "comunicacao",
+      "devolucao",
+      "reembolso"
+    ]
+  },
+  "functionality": {
+    "en": [
+      "works",
+      "function",
+      "performance",
+      "broken",
+      "defective",
+      "issue",
+      "problem",
+      "feature",
+      "useless",
+      "useful"
+    ],
+    "es": [
+      "funciona",
+      "funcion",
+      "rendimiento",
+      "roto",
+      "defectuoso",
+      "problema",
+      "caracteristica",
+      "inutil",
+      "util"
+    ],
+    "pt": [
+      "funciona",
+      "funcao",
+      "desempenho",
+      "quebrado",
+      "defeituoso",
+      "problema",
+      "recurso",
+      "inutil",
+      "util"
+    ]
+  },
+  "appearance": {
+    "en": [
+      "look",
+      "color",
+      "size",
+      "design",
+      "style",
+      "beautiful",
+      "ugly",
+      "photo",
+      "picture",
+      "different"
+    ],
+    "es": [
+      "aspecto",
+      "color",
+      "tamano",
+      "diseno",
+      "estilo",
+      "bonito",
+      "feo",
+      "foto",
+      "imagen",
+      "diferente"
+    ],
+    "pt": [
+      "aparencia",
+      "cor",
+      "tamanho",
+      "design",
+      "estilo",
+      "bonito",
+      "feio",
+      "foto",
+      "imagem",
+      "diferente"
+    ]
+  },
+  "product": {
+    "en": [
+      "product",
+      "item",
+      "article",
+      "purchase",
+      "buy",
+      "order",
+      "recommend"
+    ],
+    "es": [
+      "producto",
+      "articulo",
+      "compra",
+      "comprar",
+      "pedido",
+      "recomendar"
+    ],
+    "pt": [
+      "produto",
+      "artigo",
+      "compra",
+      "comprar",
+      "pedido",
+      "recomendar"
+    ]
+  }
+}

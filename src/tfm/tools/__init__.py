@@ -2,34 +2,25 @@
 Tools deterministas para el sistema TFM.
 
 Estas herramientas son ejecutadas por los agentes y operan sobre
-storage (Parquet + DuckDB). El LLM no procesa datos masivos; solo
+storage (Parquet). El LLM no procesa datos masivos; solo
 invoca estas tools que devuelven resultados pequenos y estructurados.
 
 Modulos:
-- storage: Gestion de DuckDB y registro de tablas
 - io_loaders: Carga de datos bronze (JSONL, CSV)
 - preprocess: Limpieza y normalizacion (bronze -> silver)
 - profiling: Inspeccion de schemas y estadisticas
 - sentiment: Analisis de sentimiento (baseline + modelos)
 - nlp_utils: Utilidades NLP (limpieza, VADER, influence score)
-- aggregations: Consultas SQL y agregaciones
+- aggregations: Agregaciones sobre Parquet con Polars
 - features: Construccion de features gold
 
 Principios de diseno:
 - Tools NO importan agents ni graphs (evitar dependencias circulares)
 - Tools son deterministas y reproducibles
-- Tools persisten resultados y registran en DuckDB
+- Tools persisten resultados en Parquet
 - Tools soportan filtrado dinamico (FilterParams)
 """
 
-from tfm.tools.storage import (
-    get_duckdb_connection,
-    register_parquet_table,
-    list_registered_tables,
-    table_exists,
-    execute_query,
-    register_all_silver_tables,
-)
 from tfm.tools.io_loaders import (
     load_yelp_reviews,
     load_yelp_users,
@@ -107,9 +98,21 @@ from tfm.tools.analysis_tools import (
     get_ambiguous_reviews_analysis,
     get_text_length_analysis,
     get_sales_by_category,
-    get_reviews_sales_correlation,
+    get_reviews_sales_correlation_basic,
+    get_reviews_sales_monthly_correlation,
+    get_sentiment_sales_monthly_correlation,
+    predict_monthly_sales,
+    get_prediction_model_info,
     get_dataset_status,
     build_dataset_silver,
+)
+from tfm.tools.prediction_models import (
+    get_reviews_sales_correlation,
+    get_sentiment_sales_correlation,
+    predict_weekly_sales,
+    get_prediction_model_status,
+    load_prediction_model,
+    load_latest_sales_data,
 )
 from tfm.tools.nlp_models import (
     # Tools principales para datasets completos
@@ -124,13 +127,6 @@ from tfm.tools.nlp_models import (
 )
 
 __all__ = [
-    # Storage
-    "get_duckdb_connection",
-    "register_parquet_table",
-    "list_registered_tables",
-    "table_exists",
-    "execute_query",
-    "register_all_silver_tables",
     # Loaders
     "load_yelp_reviews",
     "load_yelp_users",
@@ -199,9 +195,20 @@ __all__ = [
     "get_ambiguous_reviews_analysis",
     "get_text_length_analysis",
     "get_sales_by_category",
-    "get_reviews_sales_correlation",
+    "get_reviews_sales_correlation_basic",
+    "get_reviews_sales_monthly_correlation",
+    "get_sentiment_sales_monthly_correlation",
+    "predict_monthly_sales",
+    "get_prediction_model_info",
     "get_dataset_status",
     "build_dataset_silver",
+    # Prediction Models (funciones base - SEMANAL)
+    "get_reviews_sales_correlation",
+    "get_sentiment_sales_correlation",
+    "predict_weekly_sales",
+    "get_prediction_model_status",
+    "load_prediction_model",
+    "load_latest_sales_data",
     # NLP Tools para datasets completos
     "get_sentiment_distribution",
     "get_aspect_distribution",

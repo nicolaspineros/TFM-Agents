@@ -266,25 +266,146 @@ def get_sales_by_category(top_n: int = 20) -> Dict[str, Any]:
 
 
 @tool
-def get_reviews_sales_correlation() -> Dict[str, Any]:
+def get_reviews_sales_correlation_basic() -> Dict[str, Any]:
     """
-    Analiza la correlación entre reviews y ventas en Olist.
+    Analiza la correlacion basica entre reviews y ventas en Olist (por orden individual).
     
-    Usa esta herramienta cuando el usuario pregunte sobre:
-    - Correlación reviews y ventas
-    - Relación entre puntuación y valor de orden
-    - Impacto de reviews en ventas
-    - Reviews vs revenue
+    Usa esta herramienta para analisis rapido de:
+    - Relacion entre puntuacion y valor de orden
+    - Rating vs revenue por transaccion
+    
+    Para correlaciones agregadas por mes, usa get_reviews_sales_monthly_correlation.
     
     DISPONIBLE SOLO PARA: olist
     
     Returns:
-        Diccionario con correlaciones y métricas
+        Diccionario con correlaciones basicas
     """
-    print(f"[TOOL] get_reviews_sales_correlation()")
+    print(f"[TOOL] get_reviews_sales_correlation_basic()")
     
     result = aggregate_olist_reviews_sales()
+    result["tool"] = "get_reviews_sales_correlation_basic"
+    return result
+
+
+@tool
+def get_reviews_sales_monthly_correlation() -> Dict[str, Any]:
+    """
+    Analiza la correlacion SEMANAL entre reviews y ventas en Olist.
+    
+    Usa esta herramienta cuando el usuario pregunte sobre:
+    - Correlacion reviews y ventas
+    - Relacion entre rating promedio y revenue
+    - Impacto de reviews en ventas
+    - Cross-correlation (impacto del sentimiento en ventas futuras)
+    
+    Incluye ANALISIS DE CROSS-CORRELATION:
+    - Lag 0: Reviews(t) vs Ventas(t) - mismo periodo
+    - Lag 1: Reviews(t) vs Ventas(t+1) - impacto en proxima semana
+    - Lag 2: Reviews(t) vs Ventas(t+2) - impacto en 2 semanas
+    
+    Calcula correlaciones de Pearson con significancia estadistica.
+    Basado en ~110 semanas de datos.
+    
+    DISPONIBLE SOLO PARA: olist
+    
+    Returns:
+        Diccionario con correlaciones semanales, cross-correlation e interpretacion
+    """
+    print(f"[TOOL] get_reviews_sales_monthly_correlation()")
+    
+    from tfm.tools.prediction_models import get_reviews_sales_correlation
+    result = get_reviews_sales_correlation()
     result["tool"] = "get_reviews_sales_correlation"
+    return result
+
+
+@tool
+def get_sentiment_sales_monthly_correlation() -> Dict[str, Any]:
+    """
+    Analiza la correlacion entre sentimiento (review_score) y ventas en Olist.
+    
+    Usa esta herramienta cuando el usuario pregunte sobre:
+    - Correlacion sentimiento y ventas
+    - Impacto del sentimiento positivo/negativo en revenue
+    - Relacion entre opinion de clientes y ventas futuras
+    - Si mejorar el sentimiento impacta las ventas
+    
+    Incluye CROSS-CORRELATION para responder:
+    "El sentimiento de HOY afecta las ventas de MANANA?"
+    
+    DISPONIBLE SOLO PARA: olist
+    
+    Returns:
+        Diccionario con correlaciones cross-temporal e interpretacion
+    """
+    print(f"[TOOL] get_sentiment_sales_monthly_correlation()")
+    
+    from tfm.tools.prediction_models import get_sentiment_sales_correlation
+    result = get_sentiment_sales_correlation()
+    result["tool"] = "get_sentiment_sales_correlation"
+    return result
+
+
+@tool
+def predict_monthly_sales(
+    week_of_year: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Predice las ventas para la proxima semana usando el modelo entrenado.
+    
+    Usa esta herramienta cuando el usuario pregunte sobre:
+    - Prediccion de ventas
+    - Cuanto se vendera la proxima semana
+    - Estimacion de revenue futuro
+    - Forecast de ventas
+    
+    El modelo SEMANAL usa features:
+    - revenue_lag_1, revenue_lag_2, revenue_lag_4 (ventas pasadas)
+    - orders_lag_1 (ordenes semana anterior)
+    - revenue_roll_4 (tendencia 4 semanas)
+    - avg_review_score (rating promedio)
+    - week_of_year (estacionalidad 1-52)
+    
+    Modelo: Lasso con R2 = 0.92 (EXCELENTE capacidad predictiva)
+    
+    DISPONIBLE SOLO PARA: olist
+    
+    Args:
+        week_of_year: Semana del año a predecir (1-52). Si no se provee, predice siguiente semana.
+    
+    Returns:
+        Diccionario con la prediccion y metricas del modelo
+    """
+    print(f"[TOOL] predict_weekly_sales(week_of_year={week_of_year})")
+    
+    from tfm.tools.prediction_models import predict_weekly_sales
+    result = predict_weekly_sales(week_of_year=week_of_year)
+    result["tool"] = "predict_weekly_sales"
+    return result
+
+
+@tool
+def get_prediction_model_info() -> Dict[str, Any]:
+    """
+    Obtiene informacion sobre el modelo de prediccion de ventas.
+    
+    Usa esta herramienta cuando el usuario pregunte sobre:
+    - Estado del modelo de prediccion
+    - Metricas del modelo
+    - Features usadas para predecir
+    - Tipo de modelo entrenado
+    
+    DISPONIBLE SOLO PARA: olist
+    
+    Returns:
+        Diccionario con informacion del modelo y sus metricas
+    """
+    print(f"[TOOL] get_prediction_model_info()")
+    
+    from tfm.tools.prediction_models import get_prediction_model_status
+    result = get_prediction_model_status()
+    result["tool"] = "get_prediction_model_info"
     return result
 
 
@@ -420,7 +541,7 @@ def get_all_tools() -> List:
     Retorna lista de todas las tools disponibles para bindear al LLM.
     
     El LLM usara estas herramientas para responder preguntas.
-    Incluye tools de agregacion y tools de NLP.
+    Incluye tools de agregacion, NLP y prediccion.
     """
     from tfm.tools.nlp_models import get_nlp_tools
     
@@ -433,14 +554,21 @@ def get_all_tools() -> List:
         get_ambiguous_reviews_analysis,
         get_text_length_analysis,
         get_sales_by_category,
-        get_reviews_sales_correlation,
+        get_reviews_sales_correlation_basic,
         get_dataset_status,
         build_dataset_silver,
     ]
     
+    prediction_tools = [
+        get_reviews_sales_monthly_correlation,
+        get_sentiment_sales_monthly_correlation,
+        predict_monthly_sales,
+        get_prediction_model_info,
+    ]
+    
     nlp_tools = get_nlp_tools()
     
-    return aggregation_tools + nlp_tools
+    return aggregation_tools + prediction_tools + nlp_tools
 
 
 def get_tools_summary() -> str:

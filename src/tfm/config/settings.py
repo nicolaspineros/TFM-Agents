@@ -67,11 +67,8 @@ class Settings(BaseSettings):
     
     # === Paths (ahora ABSOLUTOS basados en PROJECT_ROOT) ===
     data_dir: Path = Field(default=PROJECT_ROOT / "data", description="Directorio base de datos")
-    warehouse_path: Path = Field(
-        default=PROJECT_ROOT / "warehouse" / "tfm.duckdb",
-        description="Ruta al archivo DuckDB"
-    )
     runs_dir: Path = Field(default=PROJECT_ROOT / "runs", description="Directorio de checkpoints")
+    models_dir: Path = Field(default=PROJECT_ROOT / "models", description="Directorio de modelos ML")
     
     # === Logging ===
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(
@@ -120,7 +117,6 @@ class Settings(BaseSettings):
             self.silver_dir,
             self.gold_dir,
             self.runs_dir,
-            self.warehouse_path.parent,
         ]:
             dir_path.mkdir(parents=True, exist_ok=True)
 

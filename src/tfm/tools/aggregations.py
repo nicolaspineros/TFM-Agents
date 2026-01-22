@@ -1,5 +1,5 @@
 """
-Agregaciones SQL sobre DuckDB.
+Agregaciones sobre archivos Parquet usando Polars.
 
 Este modulo ejecuta consultas SQL para generar agregados:
 - Sentimiento por mes/categoria/entidad

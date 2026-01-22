@@ -1,0 +1,26 @@
+{
+  "model_type": "Lasso (alpha=1.0)",
+  "model_class": "lasso",
+  "features": [
+    "revenue_lag_1",
+    "revenue_lag_2",
+    "revenue_lag_4",
+    "orders_lag_1",
+    "revenue_roll_4",
+    "avg_review_score",
+    "week_of_year"
+  ],
+  "target": "total_revenue",
+  "granularity": "weekly",
+  "metrics": {
+    "mae": 20568.93213260272,
+    "rmse": 30615.223489970656,
+    "r2": 0.9214706113758641
+  },
+  "training_samples": 110,
+  "train_test_split": 0.8,
+  "date_range": {
+    "start": "2016-10-02 00:00:00",
+    "end": "2018-11-04 00:00:00"
+  }
+}

@@ -104,17 +104,15 @@ class FilterParams(BaseModel):
                 raise ValueError(f"Fecha inválida: {v}. Usar formato YYYY-MM-DD")
         raise ValueError(f"Tipo de fecha no soportado: {type(v)}")
     
-    def to_sql_where(self, date_col: str = "date") -> str:
+    def to_filter_expression(self, date_col: str = "date") -> str:
         """
-        Genera cláusula WHERE para SQL/DuckDB.
+        Genera expresión de filtro para Polars.
         
         Args:
             date_col: Nombre de la columna de fecha
             
         Returns:
-            String con condiciones WHERE (sin el 'WHERE')
-            
-        TODO: Fase 2 - Implementar generación SQL
+            String con condiciones de filtro
         """
         # TODO: Implementar generación de cláusula WHERE
         raise NotImplementedError("Implementar en Fase 2")

@@ -50,7 +50,7 @@ class AspectResult(BaseModel):
 
 class AggregationResult(BaseModel):
     """
-    Resultado de una agregación SQL/DuckDB.
+    Resultado de una agregación con Polars.
     
     Contiene datos tabulares serializados para consumo por el Synthesizer.
     

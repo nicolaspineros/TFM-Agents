@@ -10,8 +10,8 @@ El LLM **NO** procesa ni agrega datasets masivos en contexto. En su lugar:
 
 1. **Actúa como planificador/razonador**: inspecciona qué artefactos (features, agregados, modelos) ya existen
 2. **Decide dinámicamente**: qué cálculos son necesarios para responder la pregunta del usuario
-3. **Ejecuta tools deterministas**: que operan sobre storage estructurado (Parquet + DuckDB)
-4. **Comunicación natural con el usuario**: toma las dudas del usuario y tiene el contexto necesarios para decidir y proceder en los casos de uso. (en los EDAs colocamos algunos casos de uso)
+3. **Ejecuta tools deterministas**: que operan sobre storage estructurado (Parquet)
+4. **Comunicación natural con el usuario**: toma las dudas del usuario y tiene el contexto necesarios para decidir y proceder en los casos de uso
 
 Este enfoque permite:
 -  Escalar a cientos de miles de reseñas sin saturar el contexto del LLM
@@ -26,31 +26,58 @@ Este enfoque permite:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           CONVERSATION GRAPH                                │
-│  ┌──────────┐    ┌───────────────┐    ┌────────────────┐    ┌──────────┐    │
-│  │  Router  │───▶│  NLP/ML       │───▶│    Insight     │───▶│   QA   │    │
-│  │  Agent   │    │  Worker       │    │  Synthesizer   │    │ Evaluator│    │
-│  └────┬─────┘    └───────┬───────┘    └────────────────┘    └──────────┘    │
-│       │                  │                                                  │
-│       │ inspects         │ executes tools                                   │
-│       ▼                  ▼                                                  │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                    TOOLS LAYER (Deterministic)                      │    │
-│  │  ┌─────────┐ ┌──────────┐ ┌───────────┐ ┌────────────┐ ┌─────────┐  │    │
-│  │  │ Storage │ │ Profiling│ │ Sentiment │ │ Aggregation│ │Retrieval│  │    │
-│  │  └─────────┘ └──────────┘ └───────────┘ └────────────┘ └─────────┘  │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
+│                         CONVERSATION GRAPH                                  │
+│                                                                             │
+│  ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐          │
+│  │   Router  │───▶│  ToolNode │───▶│ Synthesizer│───▶│    QA    │          │
+│  │   (LLM)   │◀───│(Determin.)│    │   (LLM)   │    │  (LLM)    │          │
+│  └─────┬─────┘    └───────────┘    └───────────┘    └───────────┘          │
+│        │                                                                    │
+│        │ bind_tools (descubrimiento automático)                            │
+│        ▼                                                                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    TOOLS LAYER                                      │   │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐    │   │
+│  │  │  Analysis   │ │ Aggregation │ │  NLP/ML     │ │  Preprocess │    │   │
+│  │  │   Tools     │ │   Tools     │ │   Tools     │ │   Tools     │    │   │
+│  │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘    │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           STORAGE LAYER                                     │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐   │
-│  │   Bronze    │───▶│   Silver    │───▶│    Gold     │───▶│   DuckDB  │    │
-│  │  (Raw)      │    │ (Limpio)    │    │ (Features)  │    │ (Warehouse) │   │
-│  └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘   │
-│       Parquet           Parquet           Parquet          tfm.duckdb       │
+│                           STORAGE LAYER (Parquet)                           │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐          │
+│  │     Bronze      │───▶│     Silver      │───▶│      Gold       │          │
+│  │  (Raw: JSONL,   │    │ (Limpio: tipos, │    │ (Features: NLP, │          │
+│  │   CSV)          │    │  nulls)         │    │  sentimiento)   │          │
+│  └─────────────────┘    └─────────────────┘    └─────────────────┘          │
 └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Componentes del Sistema
+
+| Componente | Tipo | Responsabilidad |
+|------------|------|-----------------|
+| **Router** | LLM Agent | Recibe pregunta, decide qué tools invocar via `bind_tools` |
+| **ToolNode** | Determinista | Ejecuta las herramientas seleccionadas por el Router |
+| **Synthesizer** | LLM Agent | Consume resultados de tools, genera `InsightsReport` |
+| **QA Evaluator** | LLM Agent | Valida respuestas (schema, faithfulness, confidence) |
+
+### Flujo del Grafo
+
+```
+START → route_query → call_model ──┐
+                          ▲        │
+                          │        ▼
+                          │   [should_continue]
+                          │        │
+                    ┌─────┴───┐    │
+                    │  tools  │◀───┤ "tools"
+                    └─────────┘    │
+                                   │ "synthesize"
+                                   ▼
+                          extract_results → synthesizer → qa → respond → END
 ```
 
 ---
@@ -65,23 +92,12 @@ tfm-agents/
 |   |   |-- rese_esp/
 |   |   +-- olist_ecommerce/
 |   |-- silver/          # Datos limpios y normalizados (Parquet)
-|   |-- gold/            # Features, agregados, metricas (Parquet + JSON)
+|   |-- gold/            # Features, agregados, métricas (Parquet)
 |   +-- test/            # Datos de prueba
-|       +-- es_annotated_reviews.csv  # Corpus anotado espanol (300 reviews)
+|       +-- es_annotated_reviews.csv  # Corpus anotado español (300 reviews)
 |-- models/
-|   |-- sentiment/       # Modelos de sentimiento entrenados
-|   |   |-- unified_svm_sentiment.joblib
-|   |   |-- yelp_svm_sentiment.joblib
-|   |   |-- es_logistic_sentiment.joblib
-|   |   +-- olist_svm_sentiment.joblib
-|   +-- aspects/         # Modelos de aspectos
-|       |-- aspect_classifier_lr.joblib
-|       |-- aspect_tfidf.joblib
-|       |-- aspect_taxonomy.json
-|       +-- sentiment_lexicon.json
-|-- warehouse/
-|   +-- tfm.duckdb       # Base de datos analitica
-|-- runs/                # Checkpoints de grafos (SQLite)
+|   |-- sentiment/       # Modelos de sentimiento entrenados (.joblib)
+|   +-- aspects/         # Modelos de aspectos (.joblib, .json)
 |-- docs/
 |   +-- data_contracts.md
 |-- notebooks/
@@ -96,8 +112,9 @@ tfm-agents/
 |       |-- config/      # Configuracion y settings
 |       |-- schemas/     # Pydantic models (State, Request, Outputs)
 |       |-- tools/       # Herramientas deterministas + NLP
-|       |-- agents/      # Agentes LLM
-|       +-- graphs/      # Grafos LangGraph
+|       |-- agents/      # Agentes LLM (router, synthesizer, qa)
+|       +-- graphs/      # Grafo conversation_graph
+|-- scripts/             # Scripts de utilidad
 |-- tests/
 |-- langgraph.json
 |-- pyproject.toml
@@ -106,14 +123,13 @@ tfm-agents/
 
 ---
 
-## Agentes
+## Agentes (LLM-based)
 
-| Agente | Responsabilidad |
-|--------|-----------------|
-| **Router con Tool Binding** | Recibe pregunta, tiene acceso a herramientas via `bind_tools`, decide dinámicamente qué tool invocar |
-| **NLP/ML Worker** | Ejecuta tools de NLP (sentimiento, aspectos, clasificación) y ML |
-| **Insight Synthesizer** | Consume resultados de herramientas, redacta `InsightsReport` estructurado |
-| **QA/Evaluator** | Checks deterministas (schema, faithfulness), evaluaciones ML (F1/MAE) |
+| Agente | Archivo | Responsabilidad |
+|--------|---------|-----------------|
+| **Router** | `agents/router.py` | Decide qué herramientas invocar via `bind_tools` |
+| **Insight Synthesizer** | `agents/insight_synthesizer.py` | Genera reporte estructurado de insights |
+| **QA Evaluator** | `agents/qa_evaluator.py` | Checks deterministas + evaluación LLM de faithfulness/confidence |
 
 ### Arquitectura de Tool Binding
 
@@ -124,7 +140,7 @@ El sistema usa **tool binding** de LangChain para que el LLM descubra automátic
 llm_with_tools = llm.bind_tools([
     get_reviews_distribution,  # Distribución de ratings
     get_sales_by_month,        # Ventas por mes (Olist)
-    get_reviews_by_month,      # Reviews por mes (temporal)
+    get_sentiment_distribution, # Distribución de sentimiento NLP
     ...
 ])
 ```
@@ -136,73 +152,45 @@ Esto permite:
 
 ---
 
-## Herramientas Disponibles (Tools)
+## Grafo Principal: conversation_graph
 
-El sistema expone las siguientes herramientas que el LLM puede invocar:
+El sistema utiliza un unico grafo (`conversation_graph`) que orquesta todo el flujo conversacional.
 
-### Tools de Análisis de Reviews
+### Nodos del Grafo
 
-| Tool | Descripción | Datasets |
-|------|-------------|----------|
-| `get_reviews_distribution` | Distribución de ratings/estrellas | yelp, es, olist |
-| `get_reviews_by_month` | Tendencia temporal de reviews | yelp, olist (NO es) |
-| `get_ambiguous_reviews_analysis` | Análisis de reviews de 3 estrellas | yelp, es, olist |
-| `get_text_length_analysis` | Análisis por longitud de texto | yelp, es, olist |
+| Nodo | Tipo | Responsabilidad |
+|------|------|-----------------|
+| `route_query` | Router (LLM) | Prepara contexto y mensajes para el modelo |
+| `call_model` | LLM + Tools | Decide que herramientas invocar via `bind_tools` |
+| `tools` | ToolNode | Ejecuta las herramientas seleccionadas (determinista) |
+| `extract_results` | Procesador | Extrae resultados de tools para sintesis |
+| `synthesizer` | LLM | Genera reporte estructurado (`InsightsReport`) |
+| `qa` | LLM | Valida respuesta (schema, confidence, faithfulness) |
+| `respond` | Procesador | Formatea respuesta final para el usuario |
 
-### Tools de Ventas (Solo Olist)
+### Flujo del Grafo
 
-| Tool | Descripción | Datasets |
-|------|-------------|----------|
-| `get_sales_by_month` | Ventas/órdenes por mes | olist |
-| `get_sales_by_category` | Ventas por categoría de producto | olist |
-| `get_reviews_sales_correlation` | Correlación reviews vs ventas | olist |
+```
+START -> route_query -> call_model ──┐
+                          ^          |
+                          |          v
+                          |    [should_continue]
+                          |          |
+                    ┌─────┴───┐      |
+                    │  tools  │<─────┤ "tools"
+                    └─────────┘      |
+                                     | "synthesize"
+                                     v
+                          extract_results -> synthesizer -> qa -> respond -> END
+```
 
-### Tools de Usuarios/Negocios (Solo Yelp)
+### Agentes LLM Internos
 
-| Tool | Descripción | Datasets |
-|------|-------------|----------|
-| `get_user_stats` | Estadísticas de usuarios, top reviewers | yelp |
-| `get_business_stats` | Estadísticas de negocios | yelp |
-
-### Tools de Utilidad
-
-| Tool | Descripcion | Uso |
-|------|-------------|-----|
-| `get_dataset_status` | Verifica si los datos silver existen | Diagnostico |
-| `build_dataset_silver` | Construye capa silver para un dataset | Preparacion |
-
-### Tools de NLP (Modelos ML Entrenados)
-
-| Tool | Descripcion | Uso |
-|------|-------------|-----|
-| `get_sentiment_distribution` | Distribucion de sentimiento en todo el dataset o filtrado | Agregacion NLP |
-| `get_aspect_distribution` | Aspectos mencionados (calidad, precio, envio) y su frecuencia | Agregacion NLP |
-| `get_ambiguous_reviews_sentiment` | Analiza sentimiento real de reseñas de 3 estrellas | Analisis especial |
-| `analyze_sentiment` | Analiza sentimiento de texto individual | Consulta puntual |
-| `analyze_review_complete` | Analisis completo de una reseña | Consulta puntual |
-| `get_nlp_models_status` | Verifica modelos NLP disponibles | Diagnostico |
-
-**Filtros disponibles:**
-- `year`: Filtrar por anio (yelp, olist)
-- `stars`: Filtrar por estrellas (1-5)
-- `sentiment_filter`: Filtrar por sentimiento (positive/negative/neutral)
-
-**Metricas de los modelos (F1 Score):**
-- Yelp (SVM): 0.858
-- ES (Logistic): 0.712
-- Olist (SVM): 0.832
-- Unified (SVM): 0.786
-
----
-
-## Grafos LangGraph
-
-| Grafo | Descripción |
-|-------|-------------|
-| `nlp_graph` | Construye silver y gold features (sentimiento, aspectos) para Yelp, ES, Olist reviews |
-| `prediction_graph` | Features temporales y modelo de predicción de ventas (Olist) |
-| `conversation_graph` | Orquestación principal: router → NLP/prediction → agregaciones → síntesis → QA |
-| `evaluation_graph` | Runner de evaluación offline (métricas ML + QA + LangSmith evals) |
+| Agente | Archivo | Funcion |
+|--------|---------|---------|
+| **Router** | `agents/router.py` | Interpreta pregunta, decide tools via `bind_tools` |
+| **Synthesizer** | `agents/insight_synthesizer.py` | Genera insights estructurados con evidencia |
+| **QA Evaluator** | `agents/qa_evaluator.py` | Valida calidad y faithfulness de respuestas |
 
 ---
 
@@ -214,71 +202,61 @@ El sistema expone las siguientes herramientas que el LLM puede invocar:
 
 ### 2. Reseñas en Español
 - Archivo: `reviews_dataframe_completo.csv`
-- Campos clave: `review_id`, `product_id`, `stars`, `review_body`, `review_title`, `product_category`, `language`
+- Campos clave: `review_id`, `product_id`, `stars`, `review_body`, `review_title`
 
 ### 3. Olist Brazilian E-commerce (Portugués)
 - Múltiples CSV con órdenes, items, reviews, productos
 - Incluye timestamps y precios
-- Tabla de traduccion de categorias (pt-en)
+- Tabla de traducción de categorías (pt-en)
 
 Ver detalles en: [`docs/data_contracts.md`](docs/data_contracts.md)
 
 ---
 
-## Caso Especial: Reviews Ambiguas (stars == 3)
-
-Las reseñas con `stars == 3` son consideradas **ambiguas**. El sistema:
-- Marca estas reseñas con un flag `is_ambiguous` en silver/gold
-- Permite análisis específico de este segmento
-- Usa lógica especial en clasificación de sentimiento
-
----
-
 ## Fases de Desarrollo
 
-### Fase 1: EDA y Prototipos (COMPLETADA)
+### Fase 1: EDA y Prototipos 
 - [x] EDA Yelp: distribucion de stars, longitud de texto, fechas, usuarios
 - [x] EDA ES: exploracion sin fecha, categorias
 - [x] EDA Olist: relacion ventas-reviews, temporalidad
 - [x] Prototipos de NLP basico en notebooks
 - [x] Documentacion de conclusiones
 
-### Fase 2: Tools Deterministas (COMPLETADA)
+### Fase 2: Tools Deterministas
 - [x] Loaders y storage (bronze -> silver)
 - [x] Profiling de datasets
-- [x] DuckDB como warehouse
 - [x] Preprocesamiento: reviews, users, business
 
-### Fase 3: Features y Agregaciones (COMPLETADA)
-- [x] Agregaciones SQL (por stars, mes, categoria)
-- [x] Analisis de reviews ambiguas
+### Fase 3: Features y Agregaciones
+- [x] Agregaciones (por stars, mes, categoría)
+- [x] Análisis de reviews ambiguas
 - [x] Correlaciones reviews-ventas (Olist)
-- [x] Estadisticas de usuarios/negocios (Yelp)
-- [x] Sentimiento VADER para ingles
+- [x] Sentimiento VADER para inglés
 - [x] Features gold layer
 
-### Fase 4: Agentes y Grafos (COMPLETADA)
-- [x] Router con **tool binding** (LLM descubre herramientas automáticamente)
-- [x] Tools de análisis con decorador `@tool` y descripciones claras
-- [x] Conversation graph con flujo: route → model → tools → synthesizer → QA
+### Fase 4: Agentes y Grafos
+- [x] Router con **tool binding**
+- [x] Tools con decorador `@tool`
+- [x] Conversation graph con flujo completo
 - [x] Insight Synthesizer con LLM
-- [x] QA Evaluator con checks determinísticos
-- [x] Soporte para todos los datasets (yelp, es, olist) en las herramientas
+- [x] QA Evaluator con checks determinísticos + LLM
 
-### Fase 5: NLP y ML Avanzado (EN PROGRESO)
+### Fase 5: NLP y ML
 - [x] Modelos de sentimiento TF-IDF + SVM/LogisticRegression
 - [x] Modelos por idioma (yelp, es, olist) y modelo unificado
 - [x] Extraccion de aspectos (calidad, precio, envio, servicio, etc.)
 - [x] Sentimiento por aspecto con ventana de contexto
 - [x] Corpus anotado ES (300 reviews) para validacion
 - [x] Tools NLP integradas en el sistema agentic
-- [ ] Correlacion sentimiento - ventas (Olist)
 
-### Fase 6: Prediccion de Ventas y Evaluacion
-- [ ] Metricas ML (F1, MAE)
-- [ ] Integracion LangSmith
-- [ ] Evaluadores de faithfulness
-- [ ] Optimizacion de prompts
+### Fase 6: Prediccion de Ventas
+- [x] Notebook 07: Exploracion y modelado de prediccion de ventas
+- [x] Tools Correlacion sentimiento - ventas y reviews - ventas (Olist)
+- [x] Entrenar modelo de prediccion (Linear Regression, Ridge, Random Forest, Gradient Boosting)
+- [x] Crear tools `predict_monthly_sales`, `get_reviews_sales_monthly_correlation`, `get_sentiment_sales_monthly_correlation`
+- [x] Integrar prediccion en conversation_graph
+- [x] Metricas de evaluacion (MAE, RMSE, R2, MAPE)
+- [ ] Pruebas end-to-end en LangSmith
 
 ---
 
@@ -291,9 +269,9 @@ uv init
 #  Añadir dependencias core
 uv add langgraph langchain langchain-openai
 uv add "langgraph-cli[inmem]" --dev
-uv add polars pyarrow duckdb pydantic pydantic-settings
+uv add polars pyarrow pydantic pydantic-settings
 
-# Dependencias para notebooks de NLP/ML (05, 06)
+# Dependencias para notebooks de NLP/ML
 uv add scikit-learn pandas numpy joblib
 uv add matplotlib seaborn
 
@@ -306,7 +284,7 @@ uv add pytest jupyterlab ipykernel --dev
 # Instalar el paquete local (IMPORTANTE)
 uv pip install -e .
 
-# Verificar instalacion
+# Verificar instalación
 uv run python -c "from tfm.config.settings import get_settings; print('OK')"
 
 # Construir silver layer (primera vez)
@@ -373,7 +351,6 @@ LANGSMITH_PROJECT=tfm-agents
 
 - `langgraph` - Orquestación de agentes
 - `langchain` / `langchain-openai` - Integración LLM
-- `duckdb` - Warehouse analítico
 - `polars` - Procesamiento de datos eficiente
 - `pandas` / `numpy` - Análisis de datos y operaciones numéricas
 - `pyarrow` - Soporte Parquet
@@ -382,6 +359,67 @@ LANGSMITH_PROJECT=tfm-agents
 - `vadersentiment` - Análisis de sentimiento (inglés)
 - `matplotlib` / `seaborn` - Visualización
 - `joblib` - Serialización de modelos
+
+---
+
+## Herramientas Disponibles (Tools)
+
+### Tools de Análisis de Reviews
+
+| Tool | Descripción | Datasets |
+|------|-------------|----------|
+| `get_reviews_distribution` | Distribución de ratings/estrellas | yelp, es, olist |
+| `get_reviews_by_month` | Tendencia temporal de reviews | yelp, olist (NO es) |
+| `get_ambiguous_reviews_analysis` | Análisis de reviews de 3 estrellas | yelp, es, olist |
+| `get_text_length_analysis` | Análisis por longitud de texto | yelp, es, olist |
+
+### Tools de Ventas y Prediccion (Solo Olist)
+
+| Tool | Descripcion |
+|------|-------------|
+| `get_sales_by_month` | Ventas/ordenes por mes |
+| `get_sales_by_category` | Ventas por categoria de producto |
+| `get_reviews_sales_correlation_basic` | Correlacion basica reviews vs ventas (por orden) |
+| `get_reviews_sales_monthly_correlation` | Correlacion mensual reviews vs ventas con significancia |
+| `get_sentiment_sales_monthly_correlation` | Correlacion sentimiento NLP vs ventas |
+| `predict_monthly_sales` | Predice ventas para un mes futuro |
+| `get_prediction_model_info` | Estado y metricas del modelo de prediccion |
+
+### Tools de Usuarios/Negocios (Solo Yelp)
+
+| Tool | Descripción |
+|------|-------------|
+| `get_user_stats` | Estadísticas de usuarios, top reviewers |
+| `get_business_stats` | Estadísticas de negocios |
+
+### Tools de Utilidad
+
+| Tool | Descripción |
+|------|-------------|
+| `get_dataset_status` | Verifica si los datos silver existen |
+| `build_dataset_silver` | Construye capa silver para un dataset |
+
+### Tools de NLP (Modelos ML Entrenados)
+
+| Tool | Descripción |
+|------|-------------|
+| `get_sentiment_distribution` | Distribución de sentimiento en dataset |
+| `get_aspect_distribution` | Aspectos mencionados y su frecuencia |
+| `get_ambiguous_reviews_sentiment` | Sentimiento real de reseñas de 3 estrellas |
+| `analyze_sentiment` | Analiza sentimiento de texto individual |
+| `analyze_review_complete` | Análisis completo de una reseña |
+| `get_nlp_models_status` | Verifica modelos NLP disponibles |
+
+**Filtros disponibles:**
+- `year`: Filtrar por año (yelp, olist)
+- `stars`: Filtrar por estrellas (1-5)
+- `sentiment_filter`: Filtrar por sentimiento (positive/negative/neutral)
+
+**Métricas de los modelos (F1 Score):**
+- Yelp (SVM): 0.858
+- ES (Logistic): 0.712
+- Olist (SVM): 0.832
+- Unified (SVM): 0.786
 
 ---
 
@@ -398,19 +436,7 @@ uv run langgraph dev
 
 Esto abrira automaticamente el navegador en `http://127.0.0.1:2024` con LangGraph Studio.
 
-### Grafos Disponibles
 
-| Grafo | Uso | Estado |
-|-------|-----|--------|
-| **conversation** | Preguntas en lenguaje natural (PRINCIPAL) | Funcional |
-| **nlp** | Construccion directa de silver/gold | Funcional |
-| **prediction** | Modelo de prediccion ventas Olist | Fase 5 |
-| **evaluation** | Evaluacion offline de metricas | Fase 6 |
-
-### Seleccionar Grafo
-
-En la barra superior de LangGraph Studio, hacer clic en el dropdown y seleccionar:
-- `conversation` para preguntas en lenguaje natural
 
 ### Input para el Grafo `conversation`
 
@@ -430,7 +456,7 @@ En LangGraph Studio, expande "Input" y configura los campos:
 }
 ```
 
-**Valores para `current_dataset`:** `"yelp"`, `"es"`, `"olist"` o vacío para auto-detectar.
+**Valores para `current_dataset`:** `"yelp"`, `"es"`, `"olist"`
 
 ### Casos de Uso para Probar
 
@@ -470,38 +496,29 @@ En LangGraph Studio, expande "Input" y configura los campos:
 5. **Observar flujo**: Ver como pasa por `router` - `aggregator` - `synthesizer` - `qa`
 6. **Ver resultado**: El nodo final muestra `insights_report` con el resumen
 
-### Input para el Grafo `nlp`
 
-Para construir features directamente sin preguntas:
-
-```json
-{
-  "dataset": "yelp"
-}
 ```
 
 ## Tests
-
-### Tests Unitarios (pytest)
 
 ```bash
 # Ejecutar todos los tests
 uv run pytest
 
-# Tests por modulo
-uv run pytest tests/test_loaders.py -v      # Carga de datos bronze
-uv run pytest tests/test_preprocess.py -v   # Construccion silver
-uv run pytest tests/test_features.py -v     # Construccion gold
-uv run pytest tests/test_sentiment.py -v    # Analisis de sentimiento
-uv run pytest tests/test_aggregations.py -v # Agregaciones
-uv run pytest tests/test_router.py -v       # Router y guardrails
-uv run pytest tests/test_graph_integration.py -v  # Integracion grafos
+# Tests por módulo
+uv run pytest tests/test_loaders.py -v
+uv run pytest tests/test_preprocess.py -v
+uv run pytest tests/test_features.py -v
+uv run pytest tests/test_sentiment.py -v
+uv run pytest tests/test_aggregations.py -v
+uv run pytest tests/test_router.py -v
+uv run pytest tests/test_graph_integration.py -v
 ```
 
-### Verificacion de Estado
+### Verificación de Estado
 
 ```bash
-# Ver estado completo de todas las capas (bronze, silver, gold) con número de registros
+# Ver estado de todas las capas
 uv run python scripts/data_status.py
 
 # Ver solo una capa específica
@@ -678,6 +695,50 @@ uv run python -c "from tfm.tools.nlp_models import get_nlp_models_status; print(
 
 **Tool invocada:** `get_aspect_distribution` con filtro sentiment=negative
 
+### Escenario 8: Correlacion Sentimiento-Ventas
+
+**Preparacion (ejecutar notebook 07 primero):**
+```bash
+# Verificar modelos de prediccion existen
+ls models/prediction/*.joblib
+
+# Verificar via tool
+uv run python -c "from tfm.tools.prediction_models import get_prediction_model_status; print(get_prediction_model_status())"
+```
+
+**Input:**
+```json
+{
+  "user_query": "El sentimiento de los clientes afecta las ventas?",
+  "current_dataset": "olist"
+}
+```
+
+**Respuesta esperada:**
+- Correlacion sentimiento vs revenue: r=0.XX (significativa/no significativa)
+- Interpretacion de la relacion
+- Meses analizados
+
+**Tool invocada:** `get_sentiment_sales_monthly_correlation`
+
+### Escenario 9: Prediccion de Ventas
+
+**Input:**
+```json
+{
+  "user_query": "Cuanto se vendera en agosto de 2018?",
+  "current_dataset": "olist"
+}
+```
+
+**Respuesta esperada:**
+- Prediccion: R$ X,XXX,XXX
+- Modelo usado: Random Forest / Gradient Boosting
+- Metricas del modelo (MAE, R2)
+- Features utilizadas
+
+**Tool invocada:** `predict_monthly_sales`
+
 ---
 
 ## Casos de Uso para Probar
@@ -702,6 +763,31 @@ uv run python -c "from tfm.tools.nlp_models import get_nlp_models_status; print(
 | "Como correlacionan reviews y ventas?" | olist | `olist_reviews_sales` | Correlacion |
 | "Estadisticas de negocios en Yelp" | yelp | `business_stats` | Metricas de negocios |
 
+### Casos de Prediccion y Correlacion (Solo Olist)
+
+| Pregunta | Tool | Descripcion |
+|----------|------|-------------|
+| "Cual es la correlacion entre reviews y ventas?" | `get_reviews_sales_monthly_correlation` | Correlacion mensual con significancia |
+| "El sentimiento afecta las ventas?" | `get_sentiment_sales_monthly_correlation` | Correlacion sentimiento-ventas |
+| "Predice las ventas de enero 2018" | `predict_monthly_sales` | Prediccion con modelo ML |
+| "Cual es el modelo de prediccion?" | `get_prediction_model_info` | Estado y metricas del modelo |
+
+**Ejemplo de correlacion:**
+```json
+{
+  "user_query": "Como correlaciona el sentimiento con las ventas?",
+  "current_dataset": "olist"
+}
+```
+
+**Ejemplo de prediccion:**
+```json
+{
+  "user_query": "Predice las ventas para julio de 2018",
+  "current_dataset": "olist"
+}
+```
+
 ### Casos de Guardrails (Deben Rechazarse)
 
 | Pregunta | Dataset | Error Esperado |
@@ -709,7 +795,7 @@ uv run python -c "from tfm.tools.nlp_models import get_nlp_models_status; print(
 | "Cual es la tendencia por mes?" | es | "Dataset ES no tiene fechas" |
 | "Cuales son las ventas?" | yelp | "Solo Olist tiene datos de ventas" |
 | "hola" | - | "Query muy corta" |
-| "Predice las ventas del proximo mes" | olist | Fase 5 (no implementado) |
+| "Predice las ventas" | yelp | "Prediccion solo disponible para Olist" |
 
 ### Casos NLP sobre Datasets (Uso Principal)
 
@@ -802,40 +888,6 @@ rm data/gold/*.parquet
 # Limpiar warehouse DuckDB
 rm warehouse/tfm.duckdb
 ```
-
----
-
-## Uso de DuckDB
-
-### Estado Actual
-DuckDB esta configurado pero actualmente las agregaciones usan **Polars directamente** sobre archivos Parquet. DuckDB se usa para:
-
-1. **Registro de vistas**: Los archivos Parquet se registran como vistas en DuckDB
-2. **Consultas SQL futuras**: Preparado para Fase 5/6 con consultas SQL complejas
-3. **Warehouse centralizado**: Un unico punto de acceso a todos los datos
-
-### Cuando se Usara DuckDB (Fase 5+)
-- Consultas SQL complejas con JOINs entre tablas
-- Agregaciones que requieren multiples tablas
-- Busqueda full-text sobre reviews
-- Materializacion de vistas para performance
-
-### Verificar Estado DuckDB
-
-```bash
-# Verificar tablas registradas
-uv run python -c "
-from tfm.tools.storage import list_registered_tables
-print(list_registered_tables())
-"
-
-# Registrar todas las tablas silver
-uv run python -c "
-from tfm.tools.storage import register_all_silver_tables
-register_all_silver_tables()
-"
-```
-
 ---
 
 ## Cómo Agregar Nuevas Tools
@@ -848,7 +900,7 @@ El sistema usa **tool binding** lo que hace muy fácil agregar nuevas herramient
 from langchain_core.tools import tool
 
 @tool
-def mi_nueva_herramienta(dataset: Literal["yelp", "es", "olist"], parametro: int = 10) -> Dict[str, Any]:
+def mi_nueva_herramienta(dataset: Literal["yelp", "es", "olist"]) -> Dict[str, Any]:
     """
     Descripción clara de lo que hace esta herramienta.
     

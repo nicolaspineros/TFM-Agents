@@ -10,7 +10,7 @@ Este modulo transforma datos crudos a formato limpio y normalizado:
 
 Los datos silver son la base para:
 - Calculo de features gold
-- Registro en DuckDB
+- Persistencia en Parquet
 - Consultas y agregaciones
 """
 

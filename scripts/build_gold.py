@@ -9,6 +9,7 @@ Opciones:
     --sample N : Procesar solo N filas (para pruebas rapidas)
     --dataset X : Procesar solo dataset X (yelp, es, olist)
     --overwrite : Sobrescribir si existe
+    --check : Solo verificar estado actual
 """
 
 import sys
@@ -24,11 +25,6 @@ from tfm.tools.features import (
     build_yelp_user_features,
     get_gold_status,
 )
-from tfm.tools.storage import (
-    register_all_silver_tables,
-    close_connection,
-    is_duckdb_available,
-)
 
 
 def main():
@@ -36,21 +32,24 @@ def main():
     parser.add_argument("--sample", type=int, help="Procesar solo N filas")
     parser.add_argument("--dataset", choices=["yelp", "es", "olist", "all"], default="all")
     parser.add_argument("--overwrite", action="store_true", help="Sobrescribir si existe")
+    parser.add_argument("--check", action="store_true", help="Solo verificar estado")
     args = parser.parse_args()
+    
+    # Si solo verificar
+    if args.check:
+        print("ESTADO GOLD LAYER")
+        print("=" * 60)
+        status = get_gold_status()
+        for name, info in status.items():
+            if info.get("exists"):
+                print(f"  [OK] {name}: {info['rows']} filas")
+            else:
+                print(f"  [--] {name}: no existe")
+        return
     
     print("=" * 60)
     print("CONSTRUYENDO GOLD LAYER")
     print("=" * 60)
-    
-    # Verificar disponibilidad de DuckDB
-    if not is_duckdb_available():
-        print("\nADVERTENCIA: DuckDB no disponible (archivo bloqueado por otro proceso)")
-        print("Los archivos Parquet se crearan pero no se registraran en DuckDB.")
-        print("Cierra notebooks/procesos Python y vuelve a ejecutar si necesitas DuckDB.\n")
-    else:
-        # Registrar tablas silver en DuckDB
-        print("\nRegistrando tablas silver en DuckDB...")
-        register_all_silver_tables()
     
     datasets = ["yelp", "es", "olist"] if args.dataset == "all" else [args.dataset]
     
@@ -108,9 +107,6 @@ def main():
             print(f"  [OK] {name}: {info['rows']} filas")
         else:
             print(f"  [--] {name}: no existe")
-    
-    # Cerrar conexion DuckDB para liberar archivo
-    close_connection()
     
     print("\nGOLD LAYER COMPLETADO")
 

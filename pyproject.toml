@@ -12,7 +12,6 @@ dependencies = [
     # Data processing
     "polars>=1.0.0",
     "pyarrow>=17.0.0",
-    "duckdb>=1.0.0",
     "pandas>=2.0.0",
     "numpy>=1.26.0",
     # Pydantic

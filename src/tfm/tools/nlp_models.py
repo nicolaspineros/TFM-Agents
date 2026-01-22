@@ -3,7 +3,7 @@ Tools de NLP que utilizan modelos ML entrenados.
 
 Este modulo proporciona herramientas para:
 - Analisis de sentimiento usando TF-IDF + SVM/LogisticRegression
-- Extraccion de aspectos de resenias
+- Extraccion de aspectos de reseñas
 - Sentimiento por aspecto
 
 Los modelos se cargan desde models/sentiment/ y models/aspects/
@@ -264,7 +264,7 @@ def analyze_sentiment_batch(
     """
     Analiza el sentimiento de multiples textos en lote.
     
-    Usa esta herramienta cuando necesites analizar varias resenias a la vez.
+    Usa esta herramienta cuando necesites analizar varias reseñas a la vez.
     Es mas eficiente que llamar analyze_sentiment multiples veces.
     
     Args:
@@ -500,15 +500,15 @@ def get_sentiment_distribution(
     
     Usa esta herramienta cuando el usuario pregunte:
     - Cual es la distribucion de sentimiento?
-    - Cuantas resenias positivas/negativas hay?
-    - Que porcentaje de resenias son positivas?
+    - Cuantas reseñas positivas/negativas hay?
+    - Que porcentaje de reseñas son positivas?
     - Cual es el sentimiento promedio?
     
     DISPONIBLE PARA: yelp, es, olist (TODOS los datasets)
     
     Args:
         dataset: Dataset a analizar
-        year: Filtrar por anio (solo yelp, olist)
+        year: Filtrar por año (solo yelp, olist)
         stars: Filtrar por estrellas (1-5), util para analizar reviews de 3 estrellas
     
     Returns:
@@ -537,7 +537,7 @@ def get_sentiment_distribution(
     df = pl.read_parquet(silver_path)
     original_count = df.height
     
-    # Filtrar por anio si aplica
+    # Filtrar por año si aplica
     if year and dataset in ["yelp", "olist"]:
         if "year" in df.columns:
             df = df.filter(pl.col("year") == year)
@@ -614,12 +614,12 @@ def get_aspect_distribution(
     stars: Optional[int] = None
 ) -> Dict[str, Any]:
     """
-    Obtiene la distribucion de aspectos mencionados en las resenias.
+    Obtiene la distribucion de aspectos mencionados en las reseñas.
     
     Usa esta herramienta cuando el usuario pregunte:
     - Cuales son los aspectos mas mencionados?
-    - De que hablan las resenias negativas?
-    - Que aspectos tienen las resenias de 3 estrellas?
+    - De que hablan las reseñas negativas?
+    - Que aspectos tienen las reseñas de 3 estrellas?
     - Cuales son los problemas mas comunes?
     
     DISPONIBLE PARA: yelp, es, olist (TODOS los datasets)
@@ -707,7 +707,7 @@ def get_aspect_distribution(
                 aspect_sentiment_counts[aspect][sent] += 1
     
     if not aspect_counts:
-        return {"error": "No se encontraron aspectos en las resenias filtradas"}
+        return {"error": "No se encontraron aspectos en las reseñas filtradas"}
     
     # Formatear resultados
     total_aspects = sum(aspect_counts.values())
@@ -739,16 +739,16 @@ def get_ambiguous_reviews_sentiment(
     dataset: Literal["yelp", "es", "olist"]
 ) -> Dict[str, Any]:
     """
-    Analiza el sentimiento de las resenias ambiguas (3 estrellas).
+    Analiza el sentimiento de las reseñas ambiguas (3 estrellas).
     
-    Las resenias de 3 estrellas son dificiles de clasificar solo por el rating.
+    Las reseñas de 3 estrellas son dificiles de clasificar solo por el rating.
     Esta herramienta usa NLP para determinar si realmente son neutrales
     o tienen tendencia positiva/negativa.
     
     Usa esta herramienta cuando el usuario pregunte:
-    - Cual es el sentimiento real de las resenias de 3 estrellas?
-    - Las resenias ambiguas son mas positivas o negativas?
-    - Analiza las resenias de 3 estrellas con NLP
+    - Cual es el sentimiento real de las reseñas de 3 estrellas?
+    - Las reseñas ambiguas son mas positivas o negativas?
+    - Analiza las reseñas de 3 estrellas con NLP
     
     DISPONIBLE PARA: yelp, es, olist (TODOS los datasets)
     
@@ -756,7 +756,7 @@ def get_ambiguous_reviews_sentiment(
         dataset: Dataset a analizar
     
     Returns:
-        Analisis de sentimiento de resenias de 3 estrellas
+        Analisis de sentimiento de reseñas de 3 estrellas
     """
     print(f"[TOOL] get_ambiguous_reviews_sentiment(dataset={dataset})")
     
@@ -773,12 +773,12 @@ def get_ambiguous_reviews_sentiment(
     interpretation = ""
     avg = result.get("average_sentiment", 0)
     
-    if avg > 0.15:
-        interpretation = "Las resenias de 3 estrellas tienen tendencia POSITIVA segun el analisis NLP"
-    elif avg < -0.15:
-        interpretation = "Las resenias de 3 estrellas tienen tendencia NEGATIVA segun el analisis NLP"
+    if avg > 0.10:
+        interpretation = "Las reseñas de 3 estrellas tienen tendencia POSITIVA segun el analisis NLP"
+    elif avg < -0.10:
+        interpretation = "Las reseñas de 3 estrellas tienen tendencia NEGATIVA segun el analisis NLP"
     else:
-        interpretation = "Las resenias de 3 estrellas son genuinamente NEUTRALES"
+        interpretation = "Las reseñas de 3 estrellas son genuinamente NEUTRALES"
     
     result["interpretation"] = interpretation
     result["is_ambiguous_analysis"] = True

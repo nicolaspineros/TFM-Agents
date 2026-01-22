@@ -501,6 +501,16 @@ uv run pytest tests/test_graph_integration.py -v  # Integracion grafos
 ### Verificacion de Estado
 
 ```bash
+# Ver estado completo de todas las capas (bronze, silver, gold) con número de registros
+uv run python scripts/data_status.py
+
+# Ver solo una capa específica
+uv run python scripts/data_status.py --layer silver
+uv run python scripts/data_status.py --layer gold
+
+# Ver con más detalles (nombres de columnas)
+uv run python scripts/data_status.py --verbose
+
 # Verificar archivos bronze existen
 uv run python -c "from tfm.tools import check_bronze_files; print(check_bronze_files())"
 
@@ -624,12 +634,12 @@ uv run python -c "from tfm.tools.nlp_models import get_nlp_models_status; print(
 ```json
 {
   "user_query": "Cual es la distribucion de sentimiento?",
-  "current_dataset": "yelp"
+  "current_dataset": "olist"
 }
 ```
 
 **Respuesta esperada:**
-- Total analizado: ~500,000 reseñas
+- Total analizado: ~40.000 reseñas
 - Distribucion: positive 63%, neutral 5%, negative 32%
 - Sentimiento promedio: 0.32 (positivo)
 
@@ -721,7 +731,7 @@ uv run python -c "from tfm.tools.nlp_models import get_nlp_models_status; print(
 ```json
 {
   "user_query": "Cual es la distribucion de sentimiento?",
-  "current_dataset": "yelp"
+  "current_dataset": "olist"
 }
 ```
 

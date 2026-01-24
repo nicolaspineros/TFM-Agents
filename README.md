@@ -24,61 +24,7 @@ Este enfoque permite:
 
 ## Arquitectura
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CONVERSATION GRAPH                                  │
-│                                                                             │
-│  ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐          │
-│  │   Router  │───▶│  ToolNode │───▶│ Synthesizer│───▶│    QA    │          │
-│  │   (LLM)   │◀───│(Determin.)│    │   (LLM)   │    │  (LLM)    │          │
-│  └─────┬─────┘    └───────────┘    └───────────┘    └───────────┘          │
-│        │                                                                    │
-│        │ bind_tools (descubrimiento automático)                            │
-│        ▼                                                                    │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    TOOLS LAYER                                      │   │
-│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐    │   │
-│  │  │  Analysis   │ │ Aggregation │ │  NLP/ML     │ │  Preprocess │    │   │
-│  │  │   Tools     │ │   Tools     │ │   Tools     │ │   Tools     │    │   │
-│  │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘    │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           STORAGE LAYER (Parquet)                           │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐          │
-│  │     Bronze      │───▶│     Silver      │───▶│      Gold       │          │
-│  │  (Raw: JSONL,   │    │ (Limpio: tipos, │    │ (Features: NLP, │          │
-│  │   CSV)          │    │  nulls)         │    │  sentimiento)   │          │
-│  └─────────────────┘    └─────────────────┘    └─────────────────┘          │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Componentes del Sistema
-
-| Componente | Tipo | Responsabilidad |
-|------------|------|-----------------|
-| **Router** | LLM Agent | Recibe pregunta, decide qué tools invocar via `bind_tools` |
-| **ToolNode** | Determinista | Ejecuta las herramientas seleccionadas por el Router |
-| **Synthesizer** | LLM Agent | Consume resultados de tools, genera `InsightsReport` |
-| **QA Evaluator** | LLM Agent | Valida respuestas (schema, faithfulness, confidence) |
-
-### Flujo del Grafo
-
-```
-START → route_query → call_model ──┐
-                          ▲        │
-                          │        ▼
-                          │   [should_continue]
-                          │        │
-                    ┌─────┴───┐    │
-                    │  tools  │◀───┤ "tools"
-                    └─────────┘    │
-                                   │ "synthesize"
-                                   ▼
-                          extract_results → synthesizer → qa → respond → END
-```
+![Flujo](./images/image_flujo.png)
 
 ---
 
@@ -123,6 +69,26 @@ tfm-agents/
 
 ---
 
+## Grafo Principal: conversation_graph
+
+El sistema utiliza un unico grafo (`conversation_graph`) que orquesta todo el flujo conversacional.
+
+### Nodos del Grafo
+
+| Nodo | Tipo | Responsabilidad |
+|------|------|-----------------|
+| `route_query` | Router (LLM) | Prepara contexto y mensajes para el modelo |
+| `call_model` | LLM + Tools | Decide que herramientas invocar via `bind_tools` |
+| `tools` | ToolNode | Ejecuta las herramientas seleccionadas (determinista) |
+| `extract_results` | Procesador | Extrae resultados de tools para sintesis |
+| `synthesizer` | LLM | Genera reporte estructurado (`InsightsReport`) |
+| `qa` | LLM | Valida respuesta (schema, confidence, faithfulness) |
+| `respond` | Procesador | Formatea respuesta final para el usuario |
+
+### Flujo del Grafo
+
+![Grafo](./images/image_graph.png)
+
 ## Agentes (LLM-based)
 
 | Agente | Archivo | Responsabilidad |
@@ -149,48 +115,6 @@ Esto permite:
 - **Descubrimiento dinámico**: El LLM "ve" qué herramientas existen
 - **Extensibilidad**: Agregar una tool nueva = el LLM la puede usar automáticamente
 - **Decisiones inteligentes**: El LLM decide basándose en las descripciones de cada tool
-
----
-
-## Grafo Principal: conversation_graph
-
-El sistema utiliza un unico grafo (`conversation_graph`) que orquesta todo el flujo conversacional.
-
-### Nodos del Grafo
-
-| Nodo | Tipo | Responsabilidad |
-|------|------|-----------------|
-| `route_query` | Router (LLM) | Prepara contexto y mensajes para el modelo |
-| `call_model` | LLM + Tools | Decide que herramientas invocar via `bind_tools` |
-| `tools` | ToolNode | Ejecuta las herramientas seleccionadas (determinista) |
-| `extract_results` | Procesador | Extrae resultados de tools para sintesis |
-| `synthesizer` | LLM | Genera reporte estructurado (`InsightsReport`) |
-| `qa` | LLM | Valida respuesta (schema, confidence, faithfulness) |
-| `respond` | Procesador | Formatea respuesta final para el usuario |
-
-### Flujo del Grafo
-
-```
-START -> route_query -> call_model ──┐
-                          ^          |
-                          |          v
-                          |    [should_continue]
-                          |          |
-                    ┌─────┴───┐      |
-                    │  tools  │<─────┤ "tools"
-                    └─────────┘      |
-                                     | "synthesize"
-                                     v
-                          extract_results -> synthesizer -> qa -> respond -> END
-```
-
-### Agentes LLM Internos
-
-| Agente | Archivo | Funcion |
-|--------|---------|---------|
-| **Router** | `agents/router.py` | Interpreta pregunta, decide tools via `bind_tools` |
-| **Synthesizer** | `agents/insight_synthesizer.py` | Genera insights estructurados con evidencia |
-| **QA Evaluator** | `agents/qa_evaluator.py` | Valida calidad y faithfulness de respuestas |
 
 ---
 
@@ -256,7 +180,7 @@ Ver detalles en: [`docs/data_contracts.md`](docs/data_contracts.md)
 - [x] Crear tools `predict_monthly_sales`, `get_reviews_sales_monthly_correlation`, `get_sentiment_sales_monthly_correlation`
 - [x] Integrar prediccion en conversation_graph
 - [x] Metricas de evaluacion (MAE, RMSE, R2, MAPE)
-- [ ] Pruebas end-to-end en LangSmith
+- [x] Pruebas end-to-end en LangSmith
 
 ---
 
@@ -336,8 +260,6 @@ uv run jupyter lab
 
 ## Variables de Entorno
 
-Ver [`.env.example`](.env.example) para la lista completa:
-
 ```
 OPENAI_API_KEY=         # Requerido para LLM
 LANGSMITH_API_KEY=      # Para trazabilidad
@@ -385,7 +307,7 @@ LANGSMITH_PROJECT=tfm-agents
 | `predict_monthly_sales` | Predice ventas para un mes futuro |
 | `get_prediction_model_info` | Estado y metricas del modelo de prediccion |
 
-### Tools de Usuarios/Negocios (Solo Yelp)
+### Tools de Usuarios/Negocios
 
 | Tool | Descripción |
 |------|-------------|
@@ -460,30 +382,7 @@ En LangGraph Studio, expande "Input" y configura los campos:
 
 ### Casos de Uso para Probar
 
-#### Preguntas Básicas (Funcionan con Tool Binding)
 
-| Pregunta | Dataset | Tool Invocada | Resultado |
-|----------|---------|---------------|-----------|
-| "Cual es la distribucion de ratings?" | yelp | `get_reviews_distribution` | Conteo por estrellas 1-5 |
-| "Cual es la distribucion de ratings?" | olist | `get_reviews_distribution` | Conteo por score 1-5 |
-| "Cual es la distribucion de ratings?" | es | `get_reviews_distribution` | Conteo por estrellas 1-5 |
-| "Cuantas reseñas hay por mes?" | olist | `get_reviews_by_month` | Tendencia temporal |
-| "Cuantas reseñas hay por mes?" | yelp | `get_reviews_by_month` | Tendencia temporal |
-| "Cuales son las ventas por mes?" | olist | `get_sales_by_month` | Revenue mensual |
-| "Cual es la evolucion de ordenes?" | olist | `get_sales_by_month` | Órdenes por mes |
-| "Analiza las reseñas de 3 estrellas" | yelp | `get_ambiguous_reviews_analysis` | Reviews ambiguas |
-| "Cuales son los usuarios mas influyentes?" | yelp | `get_user_stats` | Top reviewers |
-| "Estadisticas de negocios" | yelp | `get_business_stats` | Métricas de negocios |
-| "Ventas por categoria" | olist | `get_sales_by_category` | Top categorías |
-| "Correlacion reviews y ventas" | olist | `get_reviews_sales_correlation` | Análisis correlación |
-
-#### Guardrails (El LLM detecta automáticamente)
-
-| Pregunta | Dataset | Comportamiento |
-|----------|---------|----------------|
-| "Cual es la tendencia por mes?" | es | Tool retorna error: "Dataset 'es' NO tiene fechas" |
-| "Cuales son las ventas?" | yelp | El LLM sabe que `get_sales_by_month` es solo para olist |
-| "hola" | - | Respuesta directa sin invocar tools |
 
 ### Ejemplo Paso a Paso en Studio
 
@@ -571,12 +470,6 @@ uv run python scripts/build_silver.py --check
   "user_query": "Cual es la distribucion de ratings?",
   "current_dataset": "olist"
 }
-```
-
-**Flujo del grafo:**
-```
-START -> route_query -> call_model -> tools (get_reviews_distribution) 
-      -> call_model -> synthesizer -> qa -> respond -> END
 ```
 
 ### Escenario 2: Silver Existe, Gold No Existe
@@ -934,32 +827,6 @@ def get_all_tools() -> List:
 ### 3. El LLM la descubre automáticamente
 
 No hay que modificar el Router ni el grafo. El LLM verá la nueva herramienta y podrá usarla basándose en su descripción.
-
----
-
-## TODO: Mejoras Pendientes
-
-### Chat con Lenguaje Natural (Fase 5+)
-Actualmente el input requiere JSON estructurado:
-```json
-{"user_query": "...", "current_dataset": "yelp"}
-```
-
-**Objetivo futuro:** Permitir mensajes como:
-> "Cual es la distribucion de ratings del dataset Yelp?"
-
-El sistema debera:
-1. Parsear el mensaje con NLP/LLM
-2. Extraer `user_query` y `current_dataset` automaticamente
-3. Detectar dataset mencionado ("Yelp", "espanol", "Olist", etc.)
-
-### Otras Mejoras Pendientes
-- [ ] Soporte para preguntas de seguimiento (memoria de conversacion)
-- [ ] Graficos/visualizaciones en la respuesta
-- [ ] Exportar resultados a CSV/Excel
-- [ ] Filtros por fecha en lenguaje natural ("ultimos 6 meses")
-- [ ] Comparaciones entre datasets
-- [ ] Correlacion sentimiento-ventas (Olist)
 
 ---
 

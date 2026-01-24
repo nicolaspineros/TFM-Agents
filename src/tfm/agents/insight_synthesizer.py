@@ -31,7 +31,7 @@ SYNTHESIZER_SYSTEM_PROMPT = """Eres el Insight Synthesizer de un sistema de aná
 Tu trabajo es:
 1. Leer los datos de agregaciones/consultas proporcionados
 2. Generar insights accionables y concisos
-3. Incluir evidencia numérica para cada claim
+3. Incluir evidencia numérica para cada consulta
 4. Señalar limitaciones o caveats
 
 REGLAS:
